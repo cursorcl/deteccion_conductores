@@ -8,6 +8,7 @@ from dsd.db import (
     crear_conductor,
     init_db,
     obtener_conductor_por_nombre,
+    registrar_evento,
 )
 
 
@@ -23,7 +24,7 @@ def test_init_db_crea_tablas(conn):
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
     }
-    assert {"drivers", "sessions"} <= tablas
+    assert {"drivers", "sessions", "events"} <= tablas
 
 
 def test_crear_conductor_retorna_id(conn):
@@ -63,3 +64,28 @@ def test_cerrar_sesion_setea_end_time(conn):
         "SELECT end_time FROM sessions WHERE id = ?", (session_id,)
     ).fetchone()
     assert row[0] == "2026-07-04T10:15:00"
+
+
+def test_registrar_evento_retorna_id(conn):
+    driver_id = crear_conductor(conn, "Juan", "2026-07-04T10:00:00")
+    session_id = abrir_sesion(conn, driver_id, "2026-07-04T10:01:00")
+    evento_id = registrar_evento(conn, session_id, "microsueno", 1.8, "2026-07-04T10:02:00")
+    assert isinstance(evento_id, int)
+
+
+def test_registrar_evento_synced_por_defecto_en_cero(conn):
+    driver_id = crear_conductor(conn, "Juan", "2026-07-04T10:00:00")
+    session_id = abrir_sesion(conn, driver_id, "2026-07-04T10:01:00")
+    evento_id = registrar_evento(conn, session_id, "perclos", 0.22, "2026-07-04T10:02:00")
+    row = conn.execute("SELECT synced FROM events WHERE id = ?", (evento_id,)).fetchone()
+    assert row[0] == 0
+
+
+def test_registrar_evento_guarda_los_valores_correctos(conn):
+    driver_id = crear_conductor(conn, "Juan", "2026-07-04T10:00:00")
+    session_id = abrir_sesion(conn, driver_id, "2026-07-04T10:01:00")
+    evento_id = registrar_evento(conn, session_id, "microsueno", 1.8, "2026-07-04T10:02:00")
+    row = conn.execute(
+        "SELECT session_id, tipo, valor, timestamp FROM events WHERE id = ?", (evento_id,)
+    ).fetchone()
+    assert row == (session_id, "microsueno", 1.8, "2026-07-04T10:02:00")

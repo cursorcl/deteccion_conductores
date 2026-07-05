@@ -24,6 +24,18 @@ def init_db(path: str) -> sqlite3.Connection:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY,
+            session_id INTEGER NOT NULL REFERENCES sessions(id),
+            tipo TEXT NOT NULL,
+            valor REAL NOT NULL,
+            timestamp TEXT NOT NULL,
+            synced INTEGER NOT NULL DEFAULT 0
+        )
+        """
+    )
     conn.commit()
     return conn
 
@@ -53,3 +65,18 @@ def abrir_sesion(conn: sqlite3.Connection, driver_id: int, start_time: str) -> i
 def cerrar_sesion(conn: sqlite3.Connection, session_id: int, end_time: str) -> None:
     conn.execute("UPDATE sessions SET end_time = ? WHERE id = ?", (end_time, session_id))
     conn.commit()
+
+
+def registrar_evento(
+    conn: sqlite3.Connection,
+    session_id: int,
+    tipo: str,
+    valor: float,
+    timestamp: str,
+) -> int:
+    cursor = conn.execute(
+        "INSERT INTO events (session_id, tipo, valor, timestamp, synced) VALUES (?, ?, ?, ?, 0)",
+        (session_id, tipo, valor, timestamp),
+    )
+    conn.commit()
+    return cursor.lastrowid
