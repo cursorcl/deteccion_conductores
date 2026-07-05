@@ -1,5 +1,7 @@
-opencv-python==5.0.0.93
+opencv-contrib-python==5.0.0.93
 deepface==0.0.100
 tensorflow==2.21.0
 numpy==2.4.6
+mediapipe==0.10.35
+PyYAML==6.0.3
 pytest
