@@ -611,7 +611,11 @@ def test_microsueno_y_perclos_pueden_dispararse_en_el_mismo_llamado():
     while t < 60.0:
         estado, _ = procesar_ear(estado, EAR_CERRADO, timestamp=t, config=CONFIG)
         t += 1.0
-    estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=61.6, config=CONFIG)
+    # El microsueno anterior disparo en t=32.0 (primer disparo en t=2.0,
+    # cooldown de 30s activo hasta t=32.0); su propio cooldown de 30s no
+    # expira hasta t=62.0, asi que el llamado final debe ser posterior a
+    # ese punto para que ambos tipos de evento puedan dispararse juntos.
+    estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=62.1, config=CONFIG)
     tipos = {e.tipo for e in eventos}
     assert tipos == {"microsueno", "perclos"}
 ```
