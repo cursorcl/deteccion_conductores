@@ -1,0 +1,43 @@
+# Configuracion de deteccion de somnolencia (EAR + PERCLOS).
+# Todos los valores provienen de literatura publica bien establecida sobre
+# fatiga y microsuenos al conducir; ver el comentario sobre cada clave.
+# Los indices de landmarks de ojos usados para el calculo de EAR (fijos, no
+# configurables) estan documentados como constantes en dsd/face_mesh.py.
+
+# Eye Aspect Ratio (EAR): razon geometrica calculada sobre 6 puntos del
+# contorno de cada ojo (ver dsd/eye_metrics.py). Con el ojo abierto, EAR
+# tipicamente esta en el rango ~0.25-0.35; al cerrarse, cae abruptamente
+# hacia ~0.0-0.15. El umbral de referencia viene de Soukupova & Cech,
+# "Real-Time Eye Blink Detection using Facial Landmarks" (2016), que usa
+# un valor cercano a 0.2 para separar ojo abierto de ojo cerrado.
+ear_umbral: 0.21
+
+# Duracion minima continua (segundos) con EAR por debajo de `ear_umbral`
+# para considerar que ocurrio un "microsueno". La literatura de fatiga al
+# conducir (p.ej. Wierwille et al. 1994, investigacion patrocinada por
+# NHTSA sobre monitoreo del estado del conductor) reporta que cierres de
+# parpados de aproximadamente 1 a 2 segundos ya son indicativos de
+# microsuenos con perdida de atencion vial. Se eligio 1.5s como punto medio
+# conservador de ese rango.
+microsueno_segundos: 1.5
+
+# Tamano (segundos) de la ventana deslizante usada para calcular PERCLOS
+# (PERcentage of eyelid CLOSure), la metrica de fatiga acumulada definida
+# por Wierwille et al. 1994 (NHTSA). PERCLOS clasico se mide en ventanas de
+# 1 a 3 minutos; se eligio 60s (el extremo mas reactivo de ese rango) para
+# detectar fatiga sin esperar demasiado tiempo.
+perclos_ventana_segundos: 60
+
+# Fraccion de tiempo (0.0-1.0) dentro de la ventana anterior con los ojos
+# cerrados para considerar "fatiga acumulada". La literatura de PERCLOS
+# (Wierwille et al. 1994 y estudios posteriores de somnolencia al
+# conducir) reporta que valores de PERCLOS por encima de aproximadamente
+# 0.15 (15%) ya se asocian con niveles de somnolencia significativos.
+perclos_umbral: 0.15
+
+# Tiempo minimo (segundos) entre dos disparos consecutivos del mismo tipo
+# de evento (microsueno o perclos), para evitar eventos repetidos mientras
+# la condicion persiste. No proviene de un estudio especifico -- es un
+# parametro de diseno para no saturar el registro de eventos; 30s permite
+# que una condicion sostenida se vuelva a reportar periodicamente.
+cooldown_segundos: 30
