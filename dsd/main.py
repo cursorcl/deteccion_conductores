@@ -97,6 +97,8 @@ def main() -> None:
                 puntos_ojos = detectar_ojos(frame)
                 if puntos_ojos is not None:
                     puntos_ojo_derecho, puntos_ojo_izquierdo = puntos_ojos
+                    for x, y in puntos_ojo_derecho + puntos_ojo_izquierdo:
+                        cv2.circle(frame, (int(x), int(y)), 2, (0, 255, 255), -1)
                     ear_derecho = calcular_ear(puntos_ojo_derecho)
                     ear_izquierdo = calcular_ear(puntos_ojo_izquierdo)
                     ear_promedio = (ear_derecho + ear_izquierdo) / 2
