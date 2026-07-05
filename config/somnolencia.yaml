@@ -41,3 +41,18 @@ perclos_umbral: 0.15
 # parametro de diseno para no saturar el registro de eventos; 30s permite
 # que una condicion sostenida se vuelva a reportar periodicamente.
 cooldown_segundos: 30
+
+# Fraccion minima (0.0-1.0) de la ventana de PERCLOS que debe estar
+# efectivamente cubierta por muestras reales para evaluar PERCLOS, ademas
+# de haber transcurrido el tiempo nominal de la ventana. Sin este chequeo,
+# si el rostro no se detecta durante un tramo largo (p.ej. cabeza girada,
+# lentes con reflejo) y luego vuelven a llegar solo un par de muestras muy
+# cercanas entre si, el calculo de PERCLOS se haria sobre esos pocos
+# instantes y podria disparar fatiga acumulada de forma espuria. No
+# proviene de un estudio especifico -- es una salvaguarda de ingenieria
+# agregada tras una revision de codigo (ver docs/superpowers/plans, tarea
+# de correccion post-revision del detector de somnolencia). 0.5 exige que
+# al menos la mitad de la ventana este respaldada por datos reales,
+# tolerando huecos cortos (p.ej. unos pocos segundos sin deteccion) sin
+# bloquear evaluaciones legitimas.
+perclos_cobertura_minima: 0.5

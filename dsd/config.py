@@ -8,6 +8,7 @@ CAMPOS_REQUERIDOS = (
     "perclos_ventana_segundos",
     "perclos_umbral",
     "cooldown_segundos",
+    "perclos_cobertura_minima",
 )
 
 
@@ -18,6 +19,7 @@ class ConfigSomnolencia:
     perclos_ventana_segundos: float
     perclos_umbral: float
     cooldown_segundos: float
+    perclos_cobertura_minima: float
 
 
 def cargar_config(path: str) -> ConfigSomnolencia:
@@ -36,4 +38,5 @@ def cargar_config(path: str) -> ConfigSomnolencia:
         perclos_ventana_segundos=float(datos["perclos_ventana_segundos"]),
         perclos_umbral=float(datos["perclos_umbral"]),
         cooldown_segundos=float(datos["cooldown_segundos"]),
+        perclos_cobertura_minima=float(datos["perclos_cobertura_minima"]),
     )

@@ -11,6 +11,7 @@ CONFIG = ConfigSomnolencia(
     perclos_ventana_segundos=60.0,
     perclos_umbral=0.15,
     cooldown_segundos=30.0,
+    perclos_cobertura_minima=0.5,
 )
 
 EAR_CERRADO = 0.10
@@ -125,6 +126,27 @@ def test_estado_inicial_no_tiene_muestras():
     estado = estado_inicial_somnolencia()
     assert estado.muestras == []
     assert estado.cierre_inicio is None
+
+
+def test_perclos_no_dispara_con_ventana_dispersa_tras_hueco_prolongado():
+    # Reproduce el hallazgo de revision: si el rostro no se detecta durante
+    # un tramo largo (frames descartados por completo, sin llamar a
+    # procesar_ear), las muestras viejas quedan "congeladas" en el estado.
+    # Al retomar la deteccion, el recorte por ventana elimina casi todas
+    # las muestras viejas, dejando solo un par de muestras muy cercanas
+    # entre si. El chequeo original (tiempo transcurrido desde la primera
+    # muestra de la sesion) queda satisfecho aunque la cobertura real de
+    # datos sea minima, lo que puede disparar un PERCLOS falso.
+    estado = estado_inicial_somnolencia()
+    estado, _ = procesar_ear(estado, EAR_ABIERTO, timestamp=0.0, config=CONFIG)
+    # Hueco prolongado: no hay llamadas entre t=0 y t=118 (rostro no
+    # detectado). Al reanudar, solo 2 muestras separadas por 2s llegan
+    # bastante despues de que ya se cumplieron los 60s desde la primera
+    # muestra de la sesion.
+    estado, eventos_1 = procesar_ear(estado, EAR_CERRADO, timestamp=118.0, config=CONFIG)
+    estado, eventos_2 = procesar_ear(estado, EAR_CERRADO, timestamp=120.0, config=CONFIG)
+    eventos_perclos = [e for e in eventos_1 + eventos_2 if e.tipo == "perclos"]
+    assert eventos_perclos == []
 
 
 def test_microsueno_y_perclos_pueden_dispararse_en_el_mismo_llamado():

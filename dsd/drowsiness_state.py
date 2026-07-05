@@ -82,7 +82,18 @@ def procesar_ear(
 
     ultimo_disparo_perclos = estado.ultimo_disparo_perclos
     ventana_cubierta = (timestamp - primer_timestamp) >= config.perclos_ventana_segundos
-    if ventana_cubierta and len(muestras) >= 2:
+    # Ademas de haber transcurrido el tiempo nominal de la ventana, exige que
+    # las muestras retenidas cubran una fraccion minima real de esa ventana.
+    # Sin esto, si el rostro no se detecto durante un tramo largo (frames
+    # descartados por completo) y luego llegan solo un par de muestras
+    # cercanas entre si, "ventana_cubierta" quedaria satisfecho por el
+    # tiempo transcurrido desde el inicio de la sesion aunque los datos
+    # reales sean minimos, disparando PERCLOS de forma espuria.
+    cobertura_real = muestras[-1].timestamp - muestras[0].timestamp if len(muestras) >= 2 else 0.0
+    cobertura_suficiente = cobertura_real >= (
+        config.perclos_ventana_segundos * config.perclos_cobertura_minima
+    )
+    if ventana_cubierta and len(muestras) >= 2 and cobertura_suficiente:
         perclos = _calcular_perclos(muestras)
         if perclos >= config.perclos_umbral:
             en_cooldown = (

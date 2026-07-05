@@ -8,6 +8,7 @@ microsueno_segundos: 1.5
 perclos_ventana_segundos: 60
 perclos_umbral: 0.15
 cooldown_segundos: 30
+perclos_cobertura_minima: 0.5
 """
 
 
@@ -23,6 +24,7 @@ def test_cargar_config_retorna_los_valores_correctos(tmp_path):
         perclos_ventana_segundos=60.0,
         perclos_umbral=0.15,
         cooldown_segundos=30.0,
+        perclos_cobertura_minima=0.5,
     )
 
 
@@ -51,3 +53,4 @@ def test_cargar_config_archivo_real_del_proyecto():
     assert config.perclos_ventana_segundos == 60.0
     assert config.perclos_umbral == 0.15
     assert config.cooldown_segundos == 30.0
+    assert config.perclos_cobertura_minima == 0.5

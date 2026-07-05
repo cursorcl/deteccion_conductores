@@ -1286,6 +1286,18 @@ Durante la validación de este plan, el agente de planificación reportó haber 
 2. Los módulos impuros (Tasks 6-7) requieren verificación manual con cámara real, ya que dependen de Mediapipe/hardware — no se pueden automatizar sin mockear la cámara, lo cual iría en contra del patrón ya establecido (`recognition.py`, `main.py` tampoco tienen tests automatizados).
 3. Verificación final: correr `python -m dsd.main`, provocar un microsueño real cerrando los ojos, y confirmar con `sqlite3 data/app.db` que el evento quedó persistido correctamente en la tabla `events`.
 
+## Actualización post-revisión final: `perclos_cobertura_minima`
+
+La revisión final de todo el branch (dispatchada con el modelo más capaz, cubriendo los 7 tasks + los 2 desvíos documentados) encontró un hallazgo Importante en `dsd/drowsiness_state.py`: el gate `ventana_cubierta = (timestamp - primer_timestamp) >= perclos_ventana_segundos` prueba tiempo transcurrido desde la sesión, no cobertura real de datos. Si el rostro deja de detectarse (frames descartados por completo, según el Global Constraint de este plan) durante un tramo largo y luego vuelven a llegar solo un par de muestras cercanas entre sí, ese gate puede quedar satisfecho por el mero paso del tiempo aunque casi no haya datos reales en la ventana — permitiendo un disparo de `perclos` espurio (fracción calculada sobre 1-2 muestras, no sobre ~60s de observación real).
+
+**Restricción de diseño encontrada durante la corrección:** reemplazar el gate por completo (usar el span de las propias `muestras` en vez de `primer_timestamp`) rompe `test_perclos_no_evalua_antes_de_completar_ventana`, que exige exactamente cero evaluaciones antes de que se cumpla el tiempo nominal completo de la ventana. La solución correcta es agregar un segundo requisito en **conjunción** (AND) con el gate original, nunca reemplazarlo — así el gate original sigue bloqueando toda evaluación temprana (protegiendo ese test), y el nuevo requisito adicional sólo puede volver el resultado *más* restrictivo, nunca más permisivo.
+
+**Fix aplicado:**
+- Nueva clave de configuración `perclos_cobertura_minima: 0.5` en `config/somnolencia.yaml` y `ConfigSomnolencia` (`dsd/config.py`) — documentada como salvaguarda de ingeniería (no proviene de literatura), agregada a `CAMPOS_REQUERIDOS`.
+- En `dsd/drowsiness_state.py`, `procesar_ear` ahora exige adicionalmente `cobertura_real = muestras[-1].timestamp - muestras[0].timestamp >= perclos_ventana_segundos * perclos_cobertura_minima` antes de evaluar PERCLOS.
+- Nuevo test `test_perclos_no_dispara_con_ventana_dispersa_tras_hueco_prolongado` en `tests/test_drowsiness_state.py`, que reproduce el escenario exacto del hallazgo (muestra en t=0, hueco hasta t=118, dos muestras en t=118 y t=120) y confirma que ya no dispara `perclos` de forma espuria.
+- Verificado con RED (test falla contra el código sin corregir, reproduciendo el bug) → GREEN (45/45 tests, incluyendo los 13 preexistentes de `drowsiness_state.py` y los 4 de `config.py`, todos sin regresión).
+
 ### Critical Files for Implementation
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/drowsiness_state.py
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/config.py
