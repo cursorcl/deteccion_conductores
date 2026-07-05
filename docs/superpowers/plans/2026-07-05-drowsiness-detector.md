@@ -58,8 +58,38 @@ Este sub-proyecto agrega detección de somnolencia (microsueños vía EAR sosten
   pytest
   ```
   (`opencv-python==5.0.0.93` se reemplaza por `opencv-contrib-python==5.0.0.93`.)
-- **Rutas nuevas:** `config/somnolencia.yaml` (se versiona en git, no va en `.gitignore`).
+- **Rutas nuevas:** `config/somnolencia.yaml` (se versiona en git, no va en `.gitignore`); `models/face_landmarker.task` (asset binario de terceros, gitignored, descargado en Task 1).
 - **Fuera de alcance:** alertas audio/visuales, sincronización real con la central (solo se prepara la columna `synced`), detectores de distracción/celular/cigarro, puerto a Orange Pi.
+
+## Actualización post-Task 1: mediapipe 0.10.35 no tiene la API legacy `mp.solutions`
+
+Al ejecutar Task 1, se confirmó la contingencia documentada: `mediapipe==0.10.35` no expone `mp.solutions` en absoluto (no solo `face_mesh` — el atributo `solutions` no existe). Se investigó la API real instalada y se verificó end-to-end (con una foto real de "Eliecer Osorio Verdugo") el reemplazo correcto: la **Tasks API** (`mediapipe.tasks.python.vision.FaceLandmarker`), que requiere descargar un archivo de modelo (`.task`) por separado. Esto reemplaza el diseño original de `dsd/face_mesh.py` en Task 6 y agrega un paso de descarga de modelo a Task 1. El resto del plan (Tasks 2-5, 7) **no cambia** — todos consumen `detectar_ojos(frame) -> Optional[Tuple[List[Tuple[float,float]], List[Tuple[float,float]]]]`, no la API de Mediapipe directamente, tal como anticipaba la nota de contingencia original.
+
+Detalles verificados:
+- Modelo: `face_landmarker.task` (float16, ~3.7MB), descargado de `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task` (URL oficial del modelo de Google/Mediapipe, HTTP 200 confirmado) a `models/face_landmarker.task`. Es un asset binario grande de un tercero (no código propio) — **no se versiona en git**, se descarga en setup (agregar `models/` a `.gitignore`).
+- API verificada con una foto real:
+  ```python
+  from mediapipe.tasks.python import vision
+  from mediapipe.tasks.python.core.base_options import BaseOptions
+
+  base_options = BaseOptions(model_asset_path="models/face_landmarker.task")
+  options = vision.FaceLandmarkerOptions(
+      base_options=base_options,
+      running_mode=vision.RunningMode.IMAGE,
+      num_faces=1,
+      min_face_detection_confidence=0.5,
+      min_face_presence_confidence=0.5,
+      min_tracking_confidence=0.5,
+      output_face_blendshapes=False,
+      output_facial_transformation_matrixes=False,
+  )
+  detector = vision.FaceLandmarker.create_from_options(options)
+
+  mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)  # frame_rgb: cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+  resultado = detector.detect(mp_image)  # resultado.face_landmarks: List[List[NormalizedLandmark]]
+  ```
+  Confirmado con `known_drivers/Eliecer Osorio Verdugo/foto_1.jpg`: 1 rostro detectado, 478 landmarks (topología base 468 + 10 de iris; nuestros índices `[33, 160, 158, 133, 153, 144]` y `[362, 385, 387, 263, 373, 380]` siguen siendo válidos dentro de esa topología — Mediapipe mantuvo la misma numeración de landmarks del mesh clásico). Cada `NormalizedLandmark` tiene `.x`/`.y`/`.z` igual que la API legacy.
+- `running_mode=vision.RunningMode.IMAGE` (no `VIDEO` ni `LIVE_STREAM`) porque llamamos a `detect()` de forma síncrona por frame, igual de simple para fotos estáticas (verificación manual) que para el loop de cámara en vivo — evita el requisito de timestamps `int64` estrictamente crecientes que exige el modo `VIDEO`.
 
 ---
 
@@ -96,30 +126,37 @@ pip install -r requirements.txt
 ```
 Expected: instalación exitosa. `opencv-python` no debe quedar instalado junto a `opencv-contrib-python` (ambos proveen el módulo `cv2`).
 
-- [ ] **Step 3: Verificar que `cv2` sigue funcionando y que la API legacy de Mediapipe Face Mesh existe**
+- [ ] **Step 3: Verificar `cv2` y la API de Mediapipe instalada**
 
 Run:
 ```bash
 python3 -c "import cv2; print('cv2 OK:', cv2.__version__)"
-python3 -c "import mediapipe as mp; print('FaceMesh OK:', mp.solutions.face_mesh.FaceMesh)"
+python3 -c "import mediapipe as mp; print(dir(mp))"
 ```
-Expected: ambas líneas imprimen sin excepción.
+Expected (ya confirmado en esta instalación de `mediapipe==0.10.35`): `cv2 OK: 5.0.0`; el segundo comando NO tiene `solutions` en la lista — solo `Image`, `ImageFormat`, `tasks`. Esta versión de mediapipe usa exclusivamente la **Tasks API** (`mediapipe.tasks.python.vision.FaceLandmarker`), ya verificada end-to-end (ver sección "Actualización post-Task 1" más arriba) y usada en `dsd/face_mesh.py` (Task 6). Si en tu entorno `mp.solutions` sí existe (versión distinta de mediapipe), la API Tasks usada en este plan sigue siendo válida igual — no depende de que la legacy exista o no.
 
-**Contingencia (solo si el segundo comando falla con `AttributeError`):** la API legacy `mp.solutions.face_mesh` fue removida en la versión de `mediapipe` instalada. En ese caso, antes de continuar con Task 6, detenerse y usar en su lugar la Tasks API (`mediapipe.tasks.python.vision.FaceLandmarker` con un modelo `.task` descargado de Mediapipe Model Zoo) — esto requiere rediseñar únicamente `dsd/face_mesh.py` (Task 6); ningún otro módulo de este plan depende de qué API de Mediapipe se use internamente, porque todos consumen `detectar_ojos(frame) -> Optional[Tuple[List[Tuple[float,float]], List[Tuple[float,float]]]]`, no la API de Mediapipe directamente.
-
-- [ ] **Step 4: Crear el directorio `config/`**
+- [ ] **Step 4: Crear el directorio `config/` y descargar el modelo de Mediapipe**
 
 Run:
 ```bash
 mkdir -p config
+mkdir -p models
+curl -sL -o models/face_landmarker.task "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
+ls -la models/face_landmarker.task
 ```
+Expected: el archivo `models/face_landmarker.task` existe y pesa aproximadamente 3.7MB (ya descargado y verificado funcional en esta máquina — si el archivo ya existe con ese tamaño, el `curl` es idempotente y no hace falta repetirlo).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Agregar `models/` al `.gitignore`**
+
+Editar `.gitignore` agregando una línea `models/` (el modelo es un asset binario de terceros descargado de Google, no código propio — no se versiona en git, igual que `known_drivers/` y `data/`).
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add requirements.txt
-git commit -m "chore: agregar mediapipe y PyYAML, reemplazar opencv-python por opencv-contrib-python"
+git add requirements.txt .gitignore
+git commit -m "chore: agregar mediapipe (Tasks API) y PyYAML, reemplazar opencv-python por opencv-contrib-python"
 ```
+Nota: `models/face_landmarker.task` no se commitea (está en `.gitignore`); `config/` queda vacío por ahora (git no trackea directorios vacíos, se llena en Task 3).
 
 ---
 
@@ -922,14 +959,16 @@ git commit -m "feat: tabla events y registrar_evento para eventos de somnolencia
 
 ---
 
-### Task 6: `dsd/face_mesh.py` — wrapper de Mediapipe Face Mesh
+### Task 6: `dsd/face_mesh.py` — wrapper de Mediapipe Face Landmarker (Tasks API)
 
 **Files:**
 - Create: `dsd/face_mesh.py`
 
 **Interfaces:**
-- Consumes: nada del proyecto (solo `mediapipe`, `cv2`).
+- Consumes: nada del proyecto (solo `mediapipe`, `cv2`); requiere que `models/face_landmarker.task` exista (descargado en Task 1, Step 4).
 - Produces: `detectar_ojos(frame) -> Optional[Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]]` — usado por `dsd/main.py` en Task 7.
+
+**Nota:** este módulo usa la Tasks API (`mediapipe.tasks.python.vision.FaceLandmarker`), no la API legacy `mp.solutions.face_mesh` (removida en la versión de `mediapipe` instalada en este proyecto — ver "Actualización post-Task 1" al inicio del plan). El código de abajo ya fue verificado end-to-end contra una foto real.
 
 - [ ] **Step 1: Implementar `dsd/face_mesh.py`**
 
@@ -938,8 +977,10 @@ from typing import List, Optional, Tuple
 
 import cv2
 import mediapipe as mp
+from mediapipe.tasks.python import vision
+from mediapipe.tasks.python.core.base_options import BaseOptions
 
-# Indices fijos de la topologia de 468 puntos de Mediapipe Face Mesh
+# Indices fijos de la topologia de landmarks de Mediapipe Face Landmarker
 # correspondientes al contorno de cada ojo, en el orden estandar de 6 puntos
 # para el calculo de EAR (Eye Aspect Ratio) segun Soukupova & Cech, 2016:
 # [esquina_externa, parpado_superior_1, parpado_superior_2, esquina_interna,
@@ -947,30 +988,38 @@ import mediapipe as mp
 INDICES_OJO_DERECHO = [33, 160, 158, 133, 153, 144]
 INDICES_OJO_IZQUIERDO = [362, 385, 387, 263, 373, 380]
 
-# El modelo se crea una sola vez al importar el modulo (no en cada llamada)
-# porque instanciarlo es costoso; Mediapipe Face Mesh es liviano en
-# inferencia por-frame pero no en construccion.
-_face_mesh = mp.solutions.face_mesh.FaceMesh(
-    static_image_mode=False,
-    max_num_faces=1,
-    refine_landmarks=False,
-    min_detection_confidence=0.5,
+RUTA_MODELO = "models/face_landmarker.task"
+
+# El detector se crea una sola vez al importar el modulo (no en cada
+# llamada) porque instanciarlo (cargar el modelo) es costoso; la inferencia
+# por-frame en modo IMAGE es liviana en comparacion.
+_base_options = BaseOptions(model_asset_path=RUTA_MODELO)
+_options = vision.FaceLandmarkerOptions(
+    base_options=_base_options,
+    running_mode=vision.RunningMode.IMAGE,
+    num_faces=1,
+    min_face_detection_confidence=0.5,
+    min_face_presence_confidence=0.5,
     min_tracking_confidence=0.5,
+    output_face_blendshapes=False,
+    output_facial_transformation_matrixes=False,
 )
+_detector = vision.FaceLandmarker.create_from_options(_options)
 
 
 def detectar_ojos(frame) -> Optional[Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]]:
     try:
         alto, ancho = frame.shape[:2]
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        resultado = _face_mesh.process(frame_rgb)
+        imagen_mp = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+        resultado = _detector.detect(imagen_mp)
     except Exception:
         return None
 
-    if not resultado.multi_face_landmarks:
+    if not resultado.face_landmarks:
         return None
 
-    landmarks = resultado.multi_face_landmarks[0].landmark
+    landmarks = resultado.face_landmarks[0]
 
     def punto(indice: int) -> Tuple[float, float]:
         lm = landmarks[indice]
@@ -1021,7 +1070,7 @@ Con tu rostro frente a la cámara, expected: tupla de dos listas de 6 puntos cad
 
 ```bash
 git add dsd/face_mesh.py
-git commit -m "feat: wrapper de Mediapipe Face Mesh para landmarks de ojos"
+git commit -m "feat: wrapper de Mediapipe Face Landmarker (Tasks API) para landmarks de ojos"
 ```
 
 ---
