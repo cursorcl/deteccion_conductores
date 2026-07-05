@@ -32,6 +32,25 @@ def test_activa_otro_conductor_no_cierra_sesion():
     assert eventos == []
 
 
+def test_activa_otro_conductor_no_avanza_ultima_vez_visto():
+    estado, _ = procesar_deteccion(estado_inicial(), "Juan", timestamp=0.0)
+    nuevo_estado, _ = procesar_deteccion(estado, "Pedro", timestamp=1.0)
+    assert nuevo_estado.ultima_vez_visto == 0.0
+
+
+def test_activa_ausencia_dentro_del_timeout_no_avanza_ultima_vez_visto():
+    estado, _ = procesar_deteccion(estado_inicial(), "Juan", timestamp=0.0)
+    nuevo_estado, _ = procesar_deteccion(estado, None, timestamp=9.9)
+    assert nuevo_estado.ultima_vez_visto == 0.0
+
+
+def test_activa_ausencia_prolongada_con_otro_conductor_cierra_sesion():
+    estado, _ = procesar_deteccion(estado_inicial(), "Juan", timestamp=0.0)
+    nuevo_estado, eventos = procesar_deteccion(estado, "Pedro", timestamp=10.1)
+    assert nuevo_estado.estado == Estado.BUSCANDO
+    assert eventos == [Evento(tipo="sesion_cerrada", conductor="Juan")]
+
+
 def test_activa_no_cierra_justo_antes_del_timeout():
     estado, _ = procesar_deteccion(estado_inicial(), "Juan", timestamp=0.0)
     nuevo_estado, eventos = procesar_deteccion(estado, None, timestamp=9.9)

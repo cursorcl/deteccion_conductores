@@ -51,6 +51,13 @@ def enrolar(name: str) -> None:
     cap.release()
     cv2.destroyAllWindows()
 
+    if capturadas < FOTOS_POR_CONDUCTOR:
+        print(
+            f"Enrolamiento incompleto: solo se capturaron {capturadas}/{FOTOS_POR_CONDUCTOR} "
+            "fotos (la camara dejo de entregar frames). No se registro en la base de datos."
+        )
+        sys.exit(1)
+
     conn = init_db(RUTA_DB)
     if obtener_conductor_por_nombre(conn, name) is None:
         crear_conductor(conn, name, datetime.now(timezone.utc).isoformat())
