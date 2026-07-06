@@ -1,0 +1,39 @@
+# Configuracion de deteccion de distraccion (pose de cabeza + mirada).
+# Los indices de landmarks de ojos e iris usados estan documentados como
+# constantes en dsd/face_mesh.py.
+
+# Duracion minima continua (segundos) con la cabeza girada o la mirada
+# desviada del frente para considerar "distraccion". Basado en Klauer et
+# al., 2006 ("The Impact of Driver Inattention on Near-Crash/Crash Risk",
+# NHTSA/VTTI 100-Car Naturalistic Driving Study): apartar la vista del
+# camino por mas de 2 segundos aumenta sustancialmente el riesgo de
+# choque/casi-choque. Se usa el mismo valor para ambos tipos de evento.
+distraccion_segundos: 2.0
+
+# Angulo de giro horizontal de la cabeza (grados) mas alla del cual se
+# considera que el conductor mira hacia un costado (radio, pasajero,
+# espejo lateral). No hay un unico estudio con un numero universal exacto;
+# el valor esta informado por la practica comun de sistemas DMS (Driver
+# Monitoring Systems) automotrices y el protocolo de evaluacion de DMS de
+# Euro NCAP, que usan angulos de esta magnitud como referencia de "mirada
+# fuera de la carretera". Decision de ingenieria, sujeta a calibracion con
+# pruebas reales.
+yaw_umbral_grados: 20
+
+# Angulo de inclinacion vertical de la cabeza (grados) mas alla del cual
+# se considera que el conductor mira hacia abajo (p.ej. el celular en el
+# regazo). Misma fuente/naturaleza que yaw_umbral_grados.
+pitch_umbral_grados: 15
+
+# Desviacion minima (0.0-1.0) del ratio de mirada respecto al centro (0.5)
+# para considerar que los ojos se desviaron del frente, incluso sin que la
+# cabeza gire. Decision de ingenieria (no hay un estudio que fije este
+# numero exacto en terminos de razon geometrica) -- se calibrara con
+# verificacion manual real, igual que se hizo con ear_umbral en el
+# detector de somnolencia.
+gaze_ratio_umbral: 0.20
+
+# Tiempo minimo (segundos) entre dos disparos consecutivos del mismo tipo
+# de evento. Mismo valor y misma justificacion que cooldown_segundos en
+# somnolencia.yaml, por consistencia entre detectores.
+cooldown_segundos: 30

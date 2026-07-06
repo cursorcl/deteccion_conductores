@@ -40,3 +40,40 @@ def cargar_config(path: str) -> ConfigSomnolencia:
         cooldown_segundos=float(datos["cooldown_segundos"]),
         perclos_cobertura_minima=float(datos["perclos_cobertura_minima"]),
     )
+
+
+CAMPOS_REQUERIDOS_DISTRACCION = (
+    "distraccion_segundos",
+    "yaw_umbral_grados",
+    "pitch_umbral_grados",
+    "gaze_ratio_umbral",
+    "cooldown_segundos",
+)
+
+
+@dataclass
+class ConfigDistraccion:
+    distraccion_segundos: float
+    yaw_umbral_grados: float
+    pitch_umbral_grados: float
+    gaze_ratio_umbral: float
+    cooldown_segundos: float
+
+
+def cargar_config_distraccion(path: str) -> ConfigDistraccion:
+    with open(path, "r", encoding="utf-8") as archivo:
+        datos = yaml.safe_load(archivo)
+
+    faltantes = [campo for campo in CAMPOS_REQUERIDOS_DISTRACCION if campo not in datos]
+    if faltantes:
+        raise KeyError(
+            f"Faltan claves requeridas en el archivo de configuracion '{path}': {faltantes}"
+        )
+
+    return ConfigDistraccion(
+        distraccion_segundos=float(datos["distraccion_segundos"]),
+        yaw_umbral_grados=float(datos["yaw_umbral_grados"]),
+        pitch_umbral_grados=float(datos["pitch_umbral_grados"]),
+        gaze_ratio_umbral=float(datos["gaze_ratio_umbral"]),
+        cooldown_segundos=float(datos["cooldown_segundos"]),
+    )
