@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 
 import cv2
 
-from dsd.config import cargar_config
+from dsd.config import cargar_config, cargar_config_distraccion
 from dsd.db import (
     abrir_sesion,
     cerrar_sesion,
@@ -13,14 +13,18 @@ from dsd.db import (
     obtener_conductor_por_nombre,
     registrar_evento,
 )
+from dsd.distraction_state import estado_inicial_distraccion, procesar_pose_y_mirada
 from dsd.drowsiness_state import estado_inicial_somnolencia, procesar_ear
 from dsd.eye_metrics import calcular_ear
-from dsd.face_mesh import detectar_ojos
+from dsd.face_mesh import detectar_landmarks
+from dsd.gaze_metrics import calcular_gaze_ratio
+from dsd.head_pose import calcular_yaw_pitch
 from dsd.recognition import reconocer_conductor
 from dsd.session_state import Estado, estado_inicial, procesar_deteccion
 
 RUTA_DB = "data/app.db"
 RUTA_CONFIG_SOMNOLENCIA = "config/somnolencia.yaml"
+RUTA_CONFIG_DISTRACCION = "config/distraccion.yaml"
 
 frame_actual = None
 resultado_cacheado: Optional[Tuple[str, float]] = None
@@ -45,6 +49,7 @@ def main() -> None:
 
     conn = init_db(RUTA_DB)
     config_somnolencia = cargar_config(RUTA_CONFIG_SOMNOLENCIA)
+    config_distraccion = cargar_config_distraccion(RUTA_CONFIG_DISTRACCION)
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("No se pudo abrir la camara.")
@@ -55,6 +60,7 @@ def main() -> None:
 
     estado = estado_inicial()
     estado_somnolencia = estado_inicial_somnolencia()
+    estado_distraccion = estado_inicial_distraccion()
     session_id_activo = None
 
     try:
@@ -80,10 +86,11 @@ def main() -> None:
                         session_id_activo = None
                     else:
                         session_id_activo = abrir_sesion(conn, driver_id, ahora_iso)
-                    # Reinicia el rastreo de somnolencia: cada sesion (mismo
-                    # conductor u otro) empieza con el temporizador de
-                    # microsueno y la ventana de PERCLOS en blanco.
+                    # Reinicia el rastreo de somnolencia y distraccion: cada
+                    # sesion (mismo conductor u otro) empieza con los
+                    # temporizadores en blanco.
                     estado_somnolencia = estado_inicial_somnolencia()
+                    estado_distraccion = estado_inicial_distraccion()
                     print(f"Sesion iniciada: {evento.conductor}")
                 elif evento.tipo == "sesion_cerrada":
                     if session_id_activo is None:
@@ -94,13 +101,13 @@ def main() -> None:
                     session_id_activo = None
 
             if estado.estado == Estado.ACTIVA:
-                puntos_ojos = detectar_ojos(frame)
-                if puntos_ojos is not None:
-                    puntos_ojo_derecho, puntos_ojo_izquierdo = puntos_ojos
-                    for x, y in puntos_ojo_derecho + puntos_ojo_izquierdo:
+                landmarks = detectar_landmarks(frame)
+                if landmarks is not None:
+                    for x, y in landmarks.puntos_ojo_derecho + landmarks.puntos_ojo_izquierdo:
                         cv2.circle(frame, (int(x), int(y)), 2, (0, 255, 255), -1)
-                    ear_derecho = calcular_ear(puntos_ojo_derecho)
-                    ear_izquierdo = calcular_ear(puntos_ojo_izquierdo)
+
+                    ear_derecho = calcular_ear(landmarks.puntos_ojo_derecho)
+                    ear_izquierdo = calcular_ear(landmarks.puntos_ojo_izquierdo)
                     ear_promedio = (ear_derecho + ear_izquierdo) / 2
                     estado_somnolencia, eventos_somnolencia = procesar_ear(
                         estado_somnolencia, ear_promedio, timestamp, config_somnolencia
@@ -121,6 +128,41 @@ def main() -> None:
                             )
                         else:
                             print("Advertencia: evento de somnolencia no persistido, no hay sesion activa en la base de datos.")
+
+                    yaw, pitch = calcular_yaw_pitch(landmarks.matriz_rotacion)
+                    gaze_h_derecho, gaze_v_derecho = calcular_gaze_ratio(
+                        landmarks.iris_derecho, landmarks.puntos_ojo_derecho
+                    )
+                    gaze_h_izquierdo, gaze_v_izquierdo = calcular_gaze_ratio(
+                        landmarks.iris_izquierdo, landmarks.puntos_ojo_izquierdo
+                    )
+                    gaze_horizontal = (gaze_h_derecho + gaze_h_izquierdo) / 2
+                    gaze_vertical = (gaze_v_derecho + gaze_v_izquierdo) / 2
+                    estado_distraccion, eventos_distraccion = procesar_pose_y_mirada(
+                        estado_distraccion,
+                        yaw,
+                        pitch,
+                        gaze_horizontal,
+                        gaze_vertical,
+                        timestamp,
+                        config_distraccion,
+                    )
+                    for evento_distraccion in eventos_distraccion:
+                        ahora_iso = datetime.now(timezone.utc).isoformat()
+                        print(
+                            f"Evento de distraccion: {evento_distraccion.tipo} "
+                            f"(valor={evento_distraccion.valor:.3f})"
+                        )
+                        if session_id_activo is not None:
+                            registrar_evento(
+                                conn,
+                                session_id_activo,
+                                evento_distraccion.tipo,
+                                evento_distraccion.valor,
+                                ahora_iso,
+                            )
+                        else:
+                            print("Advertencia: evento de distraccion no persistido, no hay sesion activa en la base de datos.")
 
             if estado.estado == Estado.ACTIVA:
                 texto = f"Sesion activa: {estado.conductor_actual}"
