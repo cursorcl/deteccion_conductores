@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 import cv2
@@ -13,6 +14,13 @@ from mediapipe.tasks.python.core.base_options import BaseOptions
 INDICES_OJO_DERECHO = [33, 160, 158, 133, 153, 144]
 INDICES_OJO_IZQUIERDO = [362, 385, 387, 263, 373, 380]
 
+# Indices del centro del iris (topologia de 478 puntos: 468 base + 10 de
+# iris, 5 por ojo -- 1 centro + 4 puntos de contorno). Estos indices se
+# verifican manualmente en este mismo task (Step 2) contra fotos reales
+# antes de darlos por buenos.
+INDICE_IRIS_DERECHO = 468
+INDICE_IRIS_IZQUIERDO = 473
+
 RUTA_MODELO = "models/face_landmarker.task"
 
 # El detector se crea una sola vez al importar el modulo (no en cada
@@ -27,12 +35,21 @@ _options = vision.FaceLandmarkerOptions(
     min_face_presence_confidence=0.5,
     min_tracking_confidence=0.5,
     output_face_blendshapes=False,
-    output_facial_transformation_matrixes=False,
+    output_facial_transformation_matrixes=True,
 )
 _detector = vision.FaceLandmarker.create_from_options(_options)
 
 
-def detectar_ojos(frame) -> Optional[Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]]:
+@dataclass
+class ResultadoLandmarks:
+    puntos_ojo_derecho: List[Tuple[float, float]]
+    puntos_ojo_izquierdo: List[Tuple[float, float]]
+    iris_derecho: Tuple[float, float]
+    iris_izquierdo: Tuple[float, float]
+    matriz_rotacion: List[List[float]]
+
+
+def detectar_landmarks(frame) -> Optional[ResultadoLandmarks]:
     try:
         alto, ancho = frame.shape[:2]
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -41,7 +58,7 @@ def detectar_ojos(frame) -> Optional[Tuple[List[Tuple[float, float]], List[Tuple
     except Exception:
         return None
 
-    if not resultado.face_landmarks:
+    if not resultado.face_landmarks or not resultado.facial_transformation_matrixes:
         return None
 
     landmarks = resultado.face_landmarks[0]
@@ -52,4 +69,16 @@ def detectar_ojos(frame) -> Optional[Tuple[List[Tuple[float, float]], List[Tuple
 
     puntos_ojo_derecho = [punto(i) for i in INDICES_OJO_DERECHO]
     puntos_ojo_izquierdo = [punto(i) for i in INDICES_OJO_IZQUIERDO]
-    return puntos_ojo_derecho, puntos_ojo_izquierdo
+    iris_derecho = punto(INDICE_IRIS_DERECHO)
+    iris_izquierdo = punto(INDICE_IRIS_IZQUIERDO)
+
+    matriz_4x4 = resultado.facial_transformation_matrixes[0]
+    matriz_rotacion = [[float(matriz_4x4[i][j]) for j in range(3)] for i in range(3)]
+
+    return ResultadoLandmarks(
+        puntos_ojo_derecho=puntos_ojo_derecho,
+        puntos_ojo_izquierdo=puntos_ojo_izquierdo,
+        iris_derecho=iris_derecho,
+        iris_izquierdo=iris_izquierdo,
+        matriz_rotacion=matriz_rotacion,
+    )
