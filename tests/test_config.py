@@ -10,6 +10,7 @@ perclos_ventana_segundos: 60
 perclos_umbral: 0.15
 cooldown_segundos: 30
 perclos_cobertura_minima: 0.5
+gap_maximo_segundos: 1.0
 """
 
 
@@ -26,6 +27,7 @@ def test_cargar_config_retorna_los_valores_correctos(tmp_path):
         perclos_umbral=0.15,
         cooldown_segundos=30.0,
         perclos_cobertura_minima=0.5,
+        gap_maximo_segundos=1.0,
     )
 
 
@@ -55,6 +57,7 @@ def test_cargar_config_archivo_real_del_proyecto():
     assert config.perclos_umbral == 0.15
     assert config.cooldown_segundos == 30.0
     assert config.perclos_cobertura_minima == 0.5
+    assert config.gap_maximo_segundos == 1.0
 
 
 YAML_VALIDO_DISTRACCION = """
@@ -63,6 +66,7 @@ yaw_umbral_grados: 20
 pitch_umbral_grados: 15
 gaze_ratio_umbral: 0.20
 cooldown_segundos: 30
+gap_maximo_segundos: 1.0
 """
 
 
@@ -78,6 +82,7 @@ def test_cargar_config_distraccion_retorna_los_valores_correctos(tmp_path):
         pitch_umbral_grados=15.0,
         gaze_ratio_umbral=0.20,
         cooldown_segundos=30.0,
+        gap_maximo_segundos=1.0,
     )
 
 
@@ -106,3 +111,4 @@ def test_cargar_config_distraccion_archivo_real_del_proyecto():
     assert config.pitch_umbral_grados == 15.0
     assert config.gaze_ratio_umbral == 0.20
     assert config.cooldown_segundos == 30.0
+    assert config.gap_maximo_segundos == 1.0

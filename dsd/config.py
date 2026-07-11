@@ -9,6 +9,7 @@ CAMPOS_REQUERIDOS = (
     "perclos_umbral",
     "cooldown_segundos",
     "perclos_cobertura_minima",
+    "gap_maximo_segundos",
 )
 
 
@@ -20,6 +21,7 @@ class ConfigSomnolencia:
     perclos_umbral: float
     cooldown_segundos: float
     perclos_cobertura_minima: float
+    gap_maximo_segundos: float
 
 
 def cargar_config(path: str) -> ConfigSomnolencia:
@@ -39,6 +41,7 @@ def cargar_config(path: str) -> ConfigSomnolencia:
         perclos_umbral=float(datos["perclos_umbral"]),
         cooldown_segundos=float(datos["cooldown_segundos"]),
         perclos_cobertura_minima=float(datos["perclos_cobertura_minima"]),
+        gap_maximo_segundos=float(datos["gap_maximo_segundos"]),
     )
 
 
@@ -48,6 +51,7 @@ CAMPOS_REQUERIDOS_DISTRACCION = (
     "pitch_umbral_grados",
     "gaze_ratio_umbral",
     "cooldown_segundos",
+    "gap_maximo_segundos",
 )
 
 
@@ -58,6 +62,7 @@ class ConfigDistraccion:
     pitch_umbral_grados: float
     gaze_ratio_umbral: float
     cooldown_segundos: float
+    gap_maximo_segundos: float
 
 
 def cargar_config_distraccion(path: str) -> ConfigDistraccion:
@@ -76,4 +81,5 @@ def cargar_config_distraccion(path: str) -> ConfigDistraccion:
         pitch_umbral_grados=float(datos["pitch_umbral_grados"]),
         gaze_ratio_umbral=float(datos["gaze_ratio_umbral"]),
         cooldown_segundos=float(datos["cooldown_segundos"]),
+        gap_maximo_segundos=float(datos["gap_maximo_segundos"]),
     )

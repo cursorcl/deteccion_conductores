@@ -56,3 +56,20 @@ cooldown_segundos: 30
 # tolerando huecos cortos (p.ej. unos pocos segundos sin deteccion) sin
 # bloquear evaluaciones legitimas.
 perclos_cobertura_minima: 0.5
+
+# Tiempo maximo (segundos) permitido entre dos frames procesados
+# consecutivamente antes de considerar que hubo un "hueco" de deteccion
+# (p.ej. el rostro no se detecto durante un tramo, por oclusion, angulo
+# extremo o iluminacion). Cuando hay un hueco, el temporizador de
+# microsueno se reinicia en vez de asumir que los ojos estuvieron cerrados
+# de forma continua durante todo el hueco -- sin este chequeo, un cierre
+# de ojos detectado justo despues de un hueco prolongado podria disparar
+# un microsueno inmediato con una duracion inflada (el mismo tipo de
+# problema que motivo perclos_cobertura_minima, aplicado aqui al
+# temporizador de sostenimiento en vez de a la ventana deslizante).
+# Salvaguarda de ingenieria agregada tras una revision de codigo (ver
+# docs/superpowers/plans, correccion post-revision del detector de
+# distraccion). 1.0s es holgado frente a la cadencia real de una camara
+# (decenas de frames por segundo mientras el rostro se detecta
+# continuamente), por lo que no afecta el funcionamiento normal.
+gap_maximo_segundos: 1.0

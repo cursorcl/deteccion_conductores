@@ -37,3 +37,16 @@ gaze_ratio_umbral: 0.20
 # de evento. Mismo valor y misma justificacion que cooldown_segundos en
 # somnolencia.yaml, por consistencia entre detectores.
 cooldown_segundos: 30
+
+# Tiempo maximo (segundos) permitido entre dos frames procesados
+# consecutivamente antes de considerar que hubo un "hueco" de deteccion.
+# Cuando hay un hueco, los temporizadores de cabeza girada y mirada
+# desviada se reinician en vez de asumir que la condicion estuvo activa de
+# forma continua durante todo el hueco -- sin este chequeo, retomar la
+# deteccion tras un hueco prolongado con la cabeza ya girada podria
+# disparar distraccion_cabeza/distraccion_mirada de inmediato con una
+# duracion inflada. Mismo valor y misma justificacion que
+# gap_maximo_segundos en somnolencia.yaml (salvaguarda de ingenieria
+# agregada tras una revision de codigo), por consistencia entre
+# detectores.
+gap_maximo_segundos: 1.0
