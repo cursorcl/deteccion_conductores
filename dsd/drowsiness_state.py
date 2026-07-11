@@ -19,6 +19,10 @@ class EstadoSomnolencia:
     ultimo_disparo_perclos: Optional[float] = None
     primer_timestamp: Optional[float] = None
     ultimo_procesado: Optional[float] = None
+    boca_abierta_inicio: Optional[float] = None
+    ultimo_disparo_bostezo: Optional[float] = None
+    bostezos: List[float] = field(default_factory=list)
+    ultimo_disparo_fatiga_bostezos: Optional[float] = None
 
 
 @dataclass
@@ -49,9 +53,10 @@ def _calcular_perclos(muestras: List[Muestra]) -> float:
     return tiempo_cerrado / tiempo_total
 
 
-def procesar_ear(
+def procesar_somnolencia(
     estado: EstadoSomnolencia,
     ear: float,
+    mar: float,
     timestamp: float,
     config: ConfigSomnolencia,
 ) -> tuple[EstadoSomnolencia, list[EventoSomnolencia]]:
@@ -113,6 +118,25 @@ def procesar_ear(
                 eventos.append(EventoSomnolencia(tipo="perclos", valor=perclos))
                 ultimo_disparo_perclos = timestamp
 
+    # --- Bostezo individual: temporizador de apertura continua (mismo
+    # helper compartido que microsueno) ---
+    boca_abierta = mar > config.mar_umbral
+    temporizador_bostezo = EstadoTemporizadorSostenido(
+        inicio=estado.boca_abierta_inicio, ultimo_disparo=estado.ultimo_disparo_bostezo
+    )
+    temporizador_bostezo, valor_bostezo = procesar_temporizador_sostenido(
+        temporizador_bostezo,
+        boca_abierta,
+        hubo_hueco,
+        timestamp,
+        config.bostezo_min_segundos,
+        config.cooldown_segundos,
+    )
+    bostezos = list(estado.bostezos)
+    if valor_bostezo is not None:
+        eventos.append(EventoSomnolencia(tipo="bostezo", valor=valor_bostezo))
+        bostezos.append(timestamp)
+
     nuevo_estado = EstadoSomnolencia(
         muestras=muestras,
         cierre_inicio=temporizador_microsueno.inicio,
@@ -120,5 +144,9 @@ def procesar_ear(
         ultimo_disparo_perclos=ultimo_disparo_perclos,
         primer_timestamp=primer_timestamp,
         ultimo_procesado=timestamp,
+        boca_abierta_inicio=temporizador_bostezo.inicio,
+        ultimo_disparo_bostezo=temporizador_bostezo.ultimo_disparo,
+        bostezos=bostezos,
+        ultimo_disparo_fatiga_bostezos=estado.ultimo_disparo_fatiga_bostezos,
     )
     return nuevo_estado, eventos
