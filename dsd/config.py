@@ -10,6 +10,10 @@ CAMPOS_REQUERIDOS = (
     "cooldown_segundos",
     "perclos_cobertura_minima",
     "gap_maximo_segundos",
+    "mar_umbral",
+    "bostezo_min_segundos",
+    "bostezo_ventana_segundos",
+    "bostezo_umbral_cantidad",
 )
 
 
@@ -22,6 +26,10 @@ class ConfigSomnolencia:
     cooldown_segundos: float
     perclos_cobertura_minima: float
     gap_maximo_segundos: float
+    mar_umbral: float
+    bostezo_min_segundos: float
+    bostezo_ventana_segundos: float
+    bostezo_umbral_cantidad: float
 
 
 def cargar_config(path: str) -> ConfigSomnolencia:
@@ -42,6 +50,10 @@ def cargar_config(path: str) -> ConfigSomnolencia:
         cooldown_segundos=float(datos["cooldown_segundos"]),
         perclos_cobertura_minima=float(datos["perclos_cobertura_minima"]),
         gap_maximo_segundos=float(datos["gap_maximo_segundos"]),
+        mar_umbral=float(datos["mar_umbral"]),
+        bostezo_min_segundos=float(datos["bostezo_min_segundos"]),
+        bostezo_ventana_segundos=float(datos["bostezo_ventana_segundos"]),
+        bostezo_umbral_cantidad=float(datos["bostezo_umbral_cantidad"]),
     )
 
 

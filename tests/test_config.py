@@ -11,6 +11,10 @@ perclos_umbral: 0.15
 cooldown_segundos: 30
 perclos_cobertura_minima: 0.5
 gap_maximo_segundos: 1.0
+mar_umbral: 0.6
+bostezo_min_segundos: 1.5
+bostezo_ventana_segundos: 300
+bostezo_umbral_cantidad: 3
 """
 
 
@@ -28,6 +32,10 @@ def test_cargar_config_retorna_los_valores_correctos(tmp_path):
         cooldown_segundos=30.0,
         perclos_cobertura_minima=0.5,
         gap_maximo_segundos=1.0,
+        mar_umbral=0.6,
+        bostezo_min_segundos=1.5,
+        bostezo_ventana_segundos=300.0,
+        bostezo_umbral_cantidad=3.0,
     )
 
 
@@ -39,6 +47,7 @@ def test_cargar_config_convierte_valores_a_float(tmp_path):
 
     assert isinstance(config.perclos_ventana_segundos, float)
     assert isinstance(config.cooldown_segundos, float)
+    assert isinstance(config.bostezo_umbral_cantidad, float)
 
 
 def test_cargar_config_clave_faltante_lanza_keyerror(tmp_path):
@@ -58,6 +67,10 @@ def test_cargar_config_archivo_real_del_proyecto():
     assert config.cooldown_segundos == 30.0
     assert config.perclos_cobertura_minima == 0.5
     assert config.gap_maximo_segundos == 1.0
+    assert config.mar_umbral == 0.6
+    assert config.bostezo_min_segundos == 1.5
+    assert config.bostezo_ventana_segundos == 300.0
+    assert config.bostezo_umbral_cantidad == 3.0
 
 
 YAML_VALIDO_DISTRACCION = """

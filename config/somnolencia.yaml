@@ -73,3 +73,26 @@ perclos_cobertura_minima: 0.5
 # (decenas de frames por segundo mientras el rostro se detecta
 # continuamente), por lo que no afecta el funcionamiento normal.
 gap_maximo_segundos: 1.0
+
+# Mouth Aspect Ratio (MAR): razon geometrica identica al EAR (ver
+# dsd/mouth_metrics.py) pero aplicada a los 6 puntos de boca. Boca cerrada
+# -> MAR bajo (~0.3-0.5 tipico); boca abierta en bostezo -> MAR alto
+# (>1.0 tipico). Decision de ingenieria -- se calibrara con verificacion
+# manual real, igual que gaze_ratio_umbral en el detector de distraccion.
+mar_umbral: 0.6
+
+# Duracion minima continua (segundos) con la boca abierta para contar como
+# un bostezo (y no, p.ej., hablar o gesticular). Decision de ingenieria,
+# sujeta a calibracion con pruebas reales.
+bostezo_min_segundos: 1.5
+
+# Tamano (segundos) de la ventana deslizante para contar frecuencia de
+# bostezos. Decision de ingenieria, sujeta a calibracion con pruebas
+# reales -- analoga a perclos_ventana_segundos pero para conteo de eventos
+# discretos en vez de tiempo ponderado.
+bostezo_ventana_segundos: 300
+
+# Cantidad minima de bostezos dentro de la ventana anterior para
+# considerar "fatiga por bostezos". Decision de ingenieria, sujeta a
+# calibracion con pruebas reales.
+bostezo_umbral_cantidad: 3

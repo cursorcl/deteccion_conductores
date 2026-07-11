@@ -15,6 +15,10 @@ CONFIG = ConfigSomnolencia(
     cooldown_segundos=30.0,
     perclos_cobertura_minima=0.5,
     gap_maximo_segundos=1.0,
+    mar_umbral=0.6,
+    bostezo_min_segundos=1.5,
+    bostezo_ventana_segundos=300.0,
+    bostezo_umbral_cantidad=3.0,
 )
 
 EAR_CERRADO = 0.10
