@@ -138,12 +138,17 @@ def main() -> None:
                     )
                     gaze_horizontal = (gaze_h_derecho + gaze_h_izquierdo) / 2
                     gaze_vertical = (gaze_v_derecho + gaze_v_izquierdo) / 2
+                    # Con los ojos cerrados los landmarks de iris no son
+                    # confiables; se lo indicamos al detector de distraccion
+                    # para que no evalue la senal de mirada sobre esos datos.
+                    ojos_abiertos = ear_promedio >= config_somnolencia.ear_umbral
                     estado_distraccion, eventos_distraccion = procesar_pose_y_mirada(
                         estado_distraccion,
                         yaw,
                         pitch,
                         gaze_horizontal,
                         gaze_vertical,
+                        ojos_abiertos,
                         timestamp,
                         config_distraccion,
                     )
