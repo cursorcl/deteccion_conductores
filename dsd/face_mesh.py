@@ -21,6 +21,13 @@ INDICES_OJO_IZQUIERDO = [362, 385, 387, 263, 373, 380]
 INDICE_IRIS_DERECHO = 468
 INDICE_IRIS_IZQUIERDO = 473
 
+# Indices verificados manualmente contra camara real (mismo proceso que
+# INDICE_IRIS_DERECHO/IZQUIERDO) para el calculo de MAR (Mouth Aspect
+# Ratio), en el mismo orden de 6 puntos que EAR: [comisura_izquierda,
+# labio_superior_izquierdo, labio_superior_derecho, comisura_derecha,
+# labio_inferior_derecho, labio_inferior_izquierdo].
+INDICES_BOCA = [61, 40, 270, 291, 314, 84]
+
 RUTA_MODELO = "models/face_landmarker.task"
 
 # El detector se crea una sola vez al importar el modulo (no en cada
@@ -47,6 +54,7 @@ class ResultadoLandmarks:
     iris_derecho: Tuple[float, float]
     iris_izquierdo: Tuple[float, float]
     matriz_rotacion: List[List[float]]
+    puntos_boca: List[Tuple[float, float]]
 
 
 def detectar_landmarks(frame) -> Optional[ResultadoLandmarks]:
@@ -71,6 +79,7 @@ def detectar_landmarks(frame) -> Optional[ResultadoLandmarks]:
     puntos_ojo_izquierdo = [punto(i) for i in INDICES_OJO_IZQUIERDO]
     iris_derecho = punto(INDICE_IRIS_DERECHO)
     iris_izquierdo = punto(INDICE_IRIS_IZQUIERDO)
+    puntos_boca = [punto(i) for i in INDICES_BOCA]
 
     matriz_4x4 = resultado.facial_transformation_matrixes[0]
     matriz_rotacion = [[float(matriz_4x4[i][j]) for j in range(3)] for i in range(3)]
@@ -81,4 +90,5 @@ def detectar_landmarks(frame) -> Optional[ResultadoLandmarks]:
         iris_derecho=iris_derecho,
         iris_izquierdo=iris_izquierdo,
         matriz_rotacion=matriz_rotacion,
+        puntos_boca=puntos_boca,
     )
