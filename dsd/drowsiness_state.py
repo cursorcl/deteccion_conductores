@@ -137,6 +137,21 @@ def procesar_somnolencia(
         eventos.append(EventoSomnolencia(tipo="bostezo", valor=valor_bostezo))
         bostezos.append(timestamp)
 
+    # --- Fatiga por frecuencia de bostezos: ventana deslizante (mismo
+    # principio que PERCLOS, pero contando ocurrencias discretas en vez de
+    # tiempo ponderado -- la frecuencia de bostezos, no la duracion de cada
+    # uno, es el indicador de fatiga acumulada). ---
+    bostezos = [t for t in bostezos if t >= timestamp - config.bostezo_ventana_segundos]
+    ultimo_disparo_fatiga_bostezos = estado.ultimo_disparo_fatiga_bostezos
+    if len(bostezos) >= config.bostezo_umbral_cantidad:
+        en_cooldown = (
+            ultimo_disparo_fatiga_bostezos is not None
+            and (timestamp - ultimo_disparo_fatiga_bostezos) < config.cooldown_segundos
+        )
+        if not en_cooldown:
+            eventos.append(EventoSomnolencia(tipo="fatiga_bostezos", valor=float(len(bostezos))))
+            ultimo_disparo_fatiga_bostezos = timestamp
+
     nuevo_estado = EstadoSomnolencia(
         muestras=muestras,
         cierre_inicio=temporizador_microsueno.inicio,
@@ -147,6 +162,6 @@ def procesar_somnolencia(
         boca_abierta_inicio=temporizador_bostezo.inicio,
         ultimo_disparo_bostezo=temporizador_bostezo.ultimo_disparo,
         bostezos=bostezos,
-        ultimo_disparo_fatiga_bostezos=estado.ultimo_disparo_fatiga_bostezos,
+        ultimo_disparo_fatiga_bostezos=ultimo_disparo_fatiga_bostezos,
     )
     return nuevo_estado, eventos

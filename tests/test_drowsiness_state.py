@@ -265,3 +265,88 @@ def test_bostezo_no_dispara_con_valor_inflado_tras_hueco_prolongado():
     estado, eventos = procesar_somnolencia(estado, EAR_ABIERTO, MAR_ABIERTO, timestamp=50.0, config=CONFIG)
     assert eventos == []
     assert estado.boca_abierta_inicio == 50.0
+
+
+def test_fatiga_bostezos_no_dispara_antes_de_alcanzar_la_cantidad():
+    estado = estado_inicial_somnolencia()
+    eventos_fatiga = []
+    for inicio in [0.0, 40.0]:
+        for t in [inicio, inicio + 0.5, inicio + 1.0, inicio + 1.5, inicio + 1.6]:
+            estado, eventos = procesar_somnolencia(
+                estado, EAR_ABIERTO, MAR_ABIERTO, timestamp=t, config=CONFIG
+            )
+            eventos_fatiga += [e for e in eventos if e.tipo == "fatiga_bostezos"]
+    assert eventos_fatiga == []
+    assert len(estado.bostezos) == 2
+
+
+def test_fatiga_bostezos_dispara_al_alcanzar_la_cantidad_en_la_ventana():
+    estado = estado_inicial_somnolencia()
+    eventos_fatiga = []
+    for inicio in [0.0, 40.0, 80.0]:
+        for t in [inicio, inicio + 0.5, inicio + 1.0, inicio + 1.5, inicio + 1.6]:
+            estado, eventos = procesar_somnolencia(
+                estado, EAR_ABIERTO, MAR_ABIERTO, timestamp=t, config=CONFIG
+            )
+            eventos_fatiga += [e for e in eventos if e.tipo == "fatiga_bostezos"]
+    assert len(eventos_fatiga) == 1
+    assert eventos_fatiga[0].valor == 3.0
+
+
+def test_bostezos_fuera_de_la_ventana_se_recortan():
+    estado = estado_inicial_somnolencia()
+    for inicio in [0.0, 40.0, 80.0]:
+        for t in [inicio, inicio + 0.5, inicio + 1.0, inicio + 1.5, inicio + 1.6]:
+            estado, _ = procesar_somnolencia(
+                estado, EAR_ABIERTO, MAR_ABIERTO, timestamp=t, config=CONFIG
+            )
+    # Cuarto bostezo bien fuera de la ventana de 300s respecto al primero:
+    # solo deberian quedar los bostezos dentro de los ultimos 300s.
+    inicio = 350.0
+    for t in [inicio, inicio + 0.5, inicio + 1.0, inicio + 1.5, inicio + 1.6]:
+        estado, _ = procesar_somnolencia(
+            estado, EAR_ABIERTO, MAR_ABIERTO, timestamp=t, config=CONFIG
+        )
+    assert all(
+        ts >= (inicio + 1.6) - CONFIG.bostezo_ventana_segundos for ts in estado.bostezos
+    )
+
+
+def test_fatiga_bostezos_no_re_dispara_dentro_del_cooldown():
+    estado = estado_inicial_somnolencia()
+    eventos_fatiga = []
+    for inicio in [0.0, 40.0, 80.0]:
+        for t in [inicio, inicio + 0.5, inicio + 1.0, inicio + 1.5, inicio + 1.6]:
+            estado, eventos = procesar_somnolencia(
+                estado, EAR_ABIERTO, MAR_ABIERTO, timestamp=t, config=CONFIG
+            )
+            eventos_fatiga += [e for e in eventos if e.tipo == "fatiga_bostezos"]
+    # Tercer bostezo (t=81.6) hace que la cuenta llegue a 3 y dispara
+    # fatiga_bostezos. Los saltos de tiempo siguientes (>gap_maximo_segundos)
+    # representan tramos con la boca cerrada -- no deberian generar nuevos
+    # bostezos, y mientras la cuenta en ventana siga en 3, fatiga_bostezos
+    # no debe volver a dispararse antes de que expire su propio cooldown.
+    for t in [90.0, 100.0, 109.9]:
+        estado, eventos = procesar_somnolencia(
+            estado, EAR_ABIERTO, MAR_ABIERTO, timestamp=t, config=CONFIG
+        )
+        eventos_fatiga += [e for e in eventos if e.tipo == "fatiga_bostezos"]
+    assert len(eventos_fatiga) == 1
+
+
+def test_fatiga_bostezos_re_dispara_tras_cooldown_si_la_cuenta_sigue_alta():
+    estado = estado_inicial_somnolencia()
+    eventos_fatiga = []
+    for inicio in [0.0, 40.0, 80.0]:
+        for t in [inicio, inicio + 0.5, inicio + 1.0, inicio + 1.5, inicio + 1.6]:
+            estado, eventos = procesar_somnolencia(
+                estado, EAR_ABIERTO, MAR_ABIERTO, timestamp=t, config=CONFIG
+            )
+            eventos_fatiga += [e for e in eventos if e.tipo == "fatiga_bostezos"]
+    # Cooldown de fatiga_bostezos expira en t=81.6+30=111.6; a t=112.0 el
+    # conteo de bostezos en ventana sigue en 3, asi que vuelve a disparar.
+    estado, eventos = procesar_somnolencia(
+        estado, EAR_ABIERTO, MAR_ABIERTO, timestamp=112.0, config=CONFIG
+    )
+    eventos_fatiga += [e for e in eventos if e.tipo == "fatiga_bostezos"]
+    assert len(eventos_fatiga) == 2
