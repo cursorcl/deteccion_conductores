@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from dsd.config import ConfigSomnolencia
+from dsd.sustained_timer import EstadoTemporizadorSostenido, procesar_temporizador_sostenido
 
 
 @dataclass
@@ -17,6 +18,7 @@ class EstadoSomnolencia:
     ultimo_disparo_microsueno: Optional[float] = None
     ultimo_disparo_perclos: Optional[float] = None
     primer_timestamp: Optional[float] = None
+    ultimo_procesado: Optional[float] = None
 
 
 @dataclass
@@ -56,22 +58,29 @@ def procesar_ear(
     eventos: List[EventoSomnolencia] = []
     cerrado = ear < config.ear_umbral
 
-    # --- Microsueno: temporizador de cierre continuo ---
-    if cerrado:
-        cierre_inicio = estado.cierre_inicio if estado.cierre_inicio is not None else timestamp
-    else:
-        cierre_inicio = None
+    # Un hueco (tiempo excesivo desde el ultimo frame procesado, p.ej.
+    # porque el rostro no se detecto durante un tramo) invalida el
+    # supuesto de que la condicion se mantuvo continuamente durante ese
+    # tramo -- ver dsd/sustained_timer.py.
+    hubo_hueco = (
+        estado.ultimo_procesado is not None
+        and (timestamp - estado.ultimo_procesado) > config.gap_maximo_segundos
+    )
 
-    duracion_cierre = (timestamp - cierre_inicio) if cierre_inicio is not None else 0.0
-    ultimo_disparo_microsueno = estado.ultimo_disparo_microsueno
-    if cierre_inicio is not None and duracion_cierre > config.microsueno_segundos:
-        en_cooldown = (
-            ultimo_disparo_microsueno is not None
-            and (timestamp - ultimo_disparo_microsueno) < config.cooldown_segundos
-        )
-        if not en_cooldown:
-            eventos.append(EventoSomnolencia(tipo="microsueno", valor=duracion_cierre))
-            ultimo_disparo_microsueno = timestamp
+    # --- Microsueno: temporizador de cierre continuo (helper compartido) ---
+    temporizador_microsueno = EstadoTemporizadorSostenido(
+        inicio=estado.cierre_inicio, ultimo_disparo=estado.ultimo_disparo_microsueno
+    )
+    temporizador_microsueno, valor_microsueno = procesar_temporizador_sostenido(
+        temporizador_microsueno,
+        cerrado,
+        hubo_hueco,
+        timestamp,
+        config.microsueno_segundos,
+        config.cooldown_segundos,
+    )
+    if valor_microsueno is not None:
+        eventos.append(EventoSomnolencia(tipo="microsueno", valor=valor_microsueno))
 
     # --- PERCLOS: ventana deslizante ---
     primer_timestamp = estado.primer_timestamp if estado.primer_timestamp is not None else timestamp
@@ -106,9 +115,10 @@ def procesar_ear(
 
     nuevo_estado = EstadoSomnolencia(
         muestras=muestras,
-        cierre_inicio=cierre_inicio,
-        ultimo_disparo_microsueno=ultimo_disparo_microsueno,
+        cierre_inicio=temporizador_microsueno.inicio,
+        ultimo_disparo_microsueno=temporizador_microsueno.ultimo_disparo,
         ultimo_disparo_perclos=ultimo_disparo_perclos,
         primer_timestamp=primer_timestamp,
+        ultimo_procesado=timestamp,
     )
     return nuevo_estado, eventos

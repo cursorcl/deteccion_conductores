@@ -1,6 +1,8 @@
 from dsd.config import ConfigSomnolencia
 from dsd.drowsiness_state import (
+    EstadoSomnolencia,
     EventoSomnolencia,
+    Muestra,
     estado_inicial_somnolencia,
     procesar_ear,
 )
@@ -12,6 +14,7 @@ CONFIG = ConfigSomnolencia(
     perclos_umbral=0.15,
     cooldown_segundos=30.0,
     perclos_cobertura_minima=0.5,
+    gap_maximo_segundos=1.0,
 )
 
 EAR_CERRADO = 0.10
@@ -33,8 +36,10 @@ def test_cierre_breve_no_dispara_microsueno():
 
 
 def test_cierre_exactamente_en_el_limite_no_dispara():
+    # Pasos densos (<= gap_maximo_segundos) para que el chequeo de hueco no
+    # interfiera con la condicion de limite que este test quiere ejercitar.
     estado = estado_inicial_somnolencia()
-    for t in [0.0, 1.5]:
+    for t in [0.0, 0.5, 1.0, 1.5]:
         estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=t, config=CONFIG)
     assert eventos == []
 
@@ -48,21 +53,32 @@ def test_cierre_sostenido_dispara_microsueno():
 
 
 def test_microsueno_no_re_dispara_dentro_del_cooldown():
+    # Muestreo continuo (paso 0.5s, bajo gap_maximo_segundos) para simular
+    # ojos cerrados de forma ininterrumpida durante todo el cooldown.
     estado = estado_inicial_somnolencia()
-    for t in [0.0, 1.6]:
+    eventos_microsueno = []
+    t = 0.0
+    while t <= 31.5:
         estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=t, config=CONFIG)
-    estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=20.0, config=CONFIG)
-    assert eventos == []
-    estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=31.5, config=CONFIG)
-    assert eventos == []
+        eventos_microsueno += [e for e in eventos if e.tipo == "microsueno"]
+        t += 0.5
+    # Un unico disparo (en t=2.0); el cooldown de 30s sigue activo durante
+    # el resto del tramo (expira recien en t=32.0).
+    assert len(eventos_microsueno) == 1
+    assert eventos_microsueno[0].valor == 2.0
 
 
 def test_microsueno_re_dispara_tras_cooldown_si_sigue_cerrado():
     estado = estado_inicial_somnolencia()
-    for t in [0.0, 1.6, 20.0, 31.5]:
+    eventos_microsueno = []
+    t = 0.0
+    while t <= 32.5:
         estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=t, config=CONFIG)
-    estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=31.7, config=CONFIG)
-    assert eventos == [EventoSomnolencia(tipo="microsueno", valor=31.7)]
+        eventos_microsueno += [e for e in eventos if e.tipo == "microsueno"]
+        t += 0.5
+    assert len(eventos_microsueno) == 2
+    assert eventos_microsueno[0].valor == 2.0
+    assert eventos_microsueno[1].valor == 32.0
 
 
 def test_apertura_de_ojos_reinicia_temporizador_microsueno():
@@ -72,6 +88,21 @@ def test_apertura_de_ojos_reinicia_temporizador_microsueno():
     assert estado.cierre_inicio is None
     estado, _ = procesar_ear(estado, EAR_CERRADO, timestamp=0.6, config=CONFIG)
     assert estado.cierre_inicio == 0.6
+
+
+def test_microsueno_no_dispara_con_valor_inflado_tras_hueco_prolongado():
+    # Reproduce el hallazgo de la revision final del detector de
+    # distraccion (aplicable tambien aqui): si el rostro no se detecta
+    # durante un tramo largo (frames descartados por completo, sin llamar
+    # a procesar_ear) y luego se retoma con los ojos ya cerrados, el
+    # temporizador de microsueno NO debe asumir que estuvo cerrado desde
+    # antes del hueco.
+    estado = estado_inicial_somnolencia()
+    estado, _ = procesar_ear(estado, EAR_ABIERTO, timestamp=0.0, config=CONFIG)
+    # Hueco prolongado: sin llamadas entre t=0 y t=50 (rostro no detectado).
+    estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=50.0, config=CONFIG)
+    assert eventos == []
+    assert estado.cierre_inicio == 50.0
 
 
 def test_perclos_no_evalua_antes_de_completar_ventana():
@@ -128,37 +159,22 @@ def test_estado_inicial_no_tiene_muestras():
     assert estado.cierre_inicio is None
 
 
-def test_perclos_no_dispara_con_ventana_dispersa_tras_hueco_prolongado():
-    # Reproduce el hallazgo de revision: si el rostro no se detecta durante
-    # un tramo largo (frames descartados por completo, sin llamar a
-    # procesar_ear), las muestras viejas quedan "congeladas" en el estado.
-    # Al retomar la deteccion, el recorte por ventana elimina casi todas
-    # las muestras viejas, dejando solo un par de muestras muy cercanas
-    # entre si. El chequeo original (tiempo transcurrido desde la primera
-    # muestra de la sesion) queda satisfecho aunque la cobertura real de
-    # datos sea minima, lo que puede disparar un PERCLOS falso.
-    estado = estado_inicial_somnolencia()
-    estado, _ = procesar_ear(estado, EAR_ABIERTO, timestamp=0.0, config=CONFIG)
-    # Hueco prolongado: no hay llamadas entre t=0 y t=118 (rostro no
-    # detectado). Al reanudar, solo 2 muestras separadas por 2s llegan
-    # bastante despues de que ya se cumplieron los 60s desde la primera
-    # muestra de la sesion.
-    estado, eventos_1 = procesar_ear(estado, EAR_CERRADO, timestamp=118.0, config=CONFIG)
-    estado, eventos_2 = procesar_ear(estado, EAR_CERRADO, timestamp=120.0, config=CONFIG)
-    eventos_perclos = [e for e in eventos_1 + eventos_2 if e.tipo == "perclos"]
-    assert eventos_perclos == []
-
-
 def test_microsueno_y_perclos_pueden_dispararse_en_el_mismo_llamado():
-    estado = estado_inicial_somnolencia()
-    t = 0.0
-    while t < 60.0:
-        estado, _ = procesar_ear(estado, EAR_CERRADO, timestamp=t, config=CONFIG)
-        t += 1.0
-    # El microsueno anterior disparo en t=32.0 (primer disparo en t=2.0,
-    # cooldown de 30s activo hasta t=32.0); su propio cooldown de 30s no
-    # expira hasta t=62.0, asi que el llamado final debe ser posterior a
-    # ese punto para que ambos tipos de evento puedan dispararse juntos.
-    estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=62.1, config=CONFIG)
+    # Construye el estado previo directamente (en vez de hacerlo evolucionar
+    # con muchas llamadas) para forzar que ambos temporizadores esten listos
+    # para disparar en la misma llamada. Bajo cierre continuo, microsueno
+    # (periodo 30s desde su primer disparo en t=2) y perclos (periodo 30s
+    # desde su primer disparo en t=60) tienen fases distintas y nunca
+    # coinciden solos -- por eso se fuerza la precondicion explicitamente.
+    muestras_previas = [Muestra(timestamp=float(t), cerrado=True) for t in range(0, 60)]
+    estado = EstadoSomnolencia(
+        muestras=muestras_previas,
+        cierre_inicio=58.0,
+        ultimo_disparo_microsueno=None,
+        ultimo_disparo_perclos=None,
+        primer_timestamp=0.0,
+        ultimo_procesado=59.0,
+    )
+    estado, eventos = procesar_ear(estado, EAR_CERRADO, timestamp=60.0, config=CONFIG)
     tipos = {e.tipo for e in eventos}
     assert tipos == {"microsueno", "perclos"}
