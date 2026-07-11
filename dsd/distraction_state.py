@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from dsd.config import ConfigDistraccion
+from dsd.sustained_timer import EstadoTemporizadorSostenido, procesar_temporizador_sostenido
 
 
 @dataclass
@@ -10,6 +11,7 @@ class EstadoDistraccion:
     mirada_desviada_inicio: Optional[float] = None
     ultimo_disparo_cabeza: Optional[float] = None
     ultimo_disparo_mirada: Optional[float] = None
+    ultimo_procesado: Optional[float] = None
 
 
 @dataclass
@@ -22,78 +24,71 @@ def estado_inicial_distraccion() -> EstadoDistraccion:
     return EstadoDistraccion()
 
 
-def _procesar_temporizador_sostenido(
-    condicion_activa: bool,
-    inicio_actual: Optional[float],
-    ultimo_disparo: Optional[float],
-    timestamp: float,
-    umbral_segundos: float,
-    cooldown_segundos: float,
-    tipo_evento: str,
-) -> tuple[Optional[float], Optional[float], Optional[EventoDistraccion]]:
-    if condicion_activa:
-        inicio = inicio_actual if inicio_actual is not None else timestamp
-    else:
-        inicio = None
-
-    duracion = (timestamp - inicio) if inicio is not None else 0.0
-    evento = None
-    if inicio is not None and duracion > umbral_segundos:
-        en_cooldown = (
-            ultimo_disparo is not None and (timestamp - ultimo_disparo) < cooldown_segundos
-        )
-        if not en_cooldown:
-            evento = EventoDistraccion(tipo=tipo_evento, valor=duracion)
-            ultimo_disparo = timestamp
-
-    return inicio, ultimo_disparo, evento
-
-
 def procesar_pose_y_mirada(
     estado: EstadoDistraccion,
     yaw: float,
     pitch: float,
     gaze_horizontal: float,
     gaze_vertical: float,
+    ojos_abiertos: bool,
     timestamp: float,
     config: ConfigDistraccion,
 ) -> tuple[EstadoDistraccion, list[EventoDistraccion]]:
     eventos: list[EventoDistraccion] = []
 
+    # Un hueco (tiempo excesivo desde el ultimo frame procesado, p.ej.
+    # porque no se detecto rostro durante un tramo) invalida el supuesto
+    # de que la condicion se mantuvo continuamente durante ese tramo -- ver
+    # dsd/sustained_timer.py.
+    hubo_hueco = (
+        estado.ultimo_procesado is not None
+        and (timestamp - estado.ultimo_procesado) > config.gap_maximo_segundos
+    )
+
     cabeza_girada = abs(yaw) > config.yaw_umbral_grados or abs(pitch) > config.pitch_umbral_grados
-    mirada_desviada = (
+    # Con los ojos cerrados los landmarks de iris no son confiables (el
+    # parpado cubre el globo ocular), asi que la senal de mirada solo se
+    # evalua con los ojos abiertos -- de lo contrario un microsueno
+    # sostenido podria generar de forma espuria un evento de
+    # distraccion_mirada sobre datos de iris basura.
+    mirada_desviada = ojos_abiertos and (
         abs(gaze_horizontal - 0.5) > config.gaze_ratio_umbral
         or abs(gaze_vertical - 0.5) > config.gaze_ratio_umbral
     )
 
-    cabeza_girada_inicio, ultimo_disparo_cabeza, evento_cabeza = _procesar_temporizador_sostenido(
+    temporizador_cabeza = EstadoTemporizadorSostenido(
+        inicio=estado.cabeza_girada_inicio, ultimo_disparo=estado.ultimo_disparo_cabeza
+    )
+    temporizador_cabeza, valor_cabeza = procesar_temporizador_sostenido(
+        temporizador_cabeza,
         cabeza_girada,
-        estado.cabeza_girada_inicio,
-        estado.ultimo_disparo_cabeza,
+        hubo_hueco,
         timestamp,
         config.distraccion_segundos,
         config.cooldown_segundos,
-        "distraccion_cabeza",
     )
-    if evento_cabeza is not None:
-        eventos.append(evento_cabeza)
+    if valor_cabeza is not None:
+        eventos.append(EventoDistraccion(tipo="distraccion_cabeza", valor=valor_cabeza))
 
-    mirada_desviada_inicio, ultimo_disparo_mirada, evento_mirada = _procesar_temporizador_sostenido(
+    temporizador_mirada = EstadoTemporizadorSostenido(
+        inicio=estado.mirada_desviada_inicio, ultimo_disparo=estado.ultimo_disparo_mirada
+    )
+    temporizador_mirada, valor_mirada = procesar_temporizador_sostenido(
+        temporizador_mirada,
         mirada_desviada,
-        estado.mirada_desviada_inicio,
-        estado.ultimo_disparo_mirada,
+        hubo_hueco,
         timestamp,
         config.distraccion_segundos,
         config.cooldown_segundos,
-        "distraccion_mirada",
     )
-    if evento_mirada is not None:
-        eventos.append(evento_mirada)
+    if valor_mirada is not None:
+        eventos.append(EventoDistraccion(tipo="distraccion_mirada", valor=valor_mirada))
 
     nuevo_estado = EstadoDistraccion(
-        cabeza_girada_inicio=cabeza_girada_inicio,
-        mirada_desviada_inicio=mirada_desviada_inicio,
-        ultimo_disparo_cabeza=ultimo_disparo_cabeza,
-        ultimo_disparo_mirada=ultimo_disparo_mirada,
+        cabeza_girada_inicio=temporizador_cabeza.inicio,
+        mirada_desviada_inicio=temporizador_mirada.inicio,
+        ultimo_disparo_cabeza=temporizador_cabeza.ultimo_disparo,
+        ultimo_disparo_mirada=temporizador_mirada.ultimo_disparo,
+        ultimo_procesado=timestamp,
     )
     return nuevo_estado, eventos
