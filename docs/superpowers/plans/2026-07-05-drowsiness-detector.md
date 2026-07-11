@@ -1298,6 +1298,12 @@ La revisión final de todo el branch (dispatchada con el modelo más capaz, cubr
 - Nuevo test `test_perclos_no_dispara_con_ventana_dispersa_tras_hueco_prolongado` en `tests/test_drowsiness_state.py`, que reproduce el escenario exacto del hallazgo (muestra en t=0, hueco hasta t=118, dos muestras en t=118 y t=120) y confirma que ya no dispara `perclos` de forma espuria.
 - Verificado con RED (test falla contra el código sin corregir, reproduciendo el bug) → GREEN (45/45 tests, incluyendo los 13 preexistentes de `drowsiness_state.py` y los 4 de `config.py`, todos sin regresión).
 
+## Actualización post-revisión del detector de distracción: hueco de detección en microsueño
+
+La revisión final del sub-proyecto de **distracción** (siguiente en la secuencia) encontró que `cierre_inicio` en este módulo tenía el mismo defecto de raíz que motivó `perclos_cobertura_minima` arriba, pero en el temporizador de sostenimiento en vez de en la ventana deslizante: no verificaba cuánto tiempo pasó desde el último frame procesado, por lo que un hueco de detección prolongado podía producir un disparo de `microsueno` inmediato con duración inflada al reanudar.
+
+**Fix aplicado (detallado en `docs/superpowers/plans/2026-07-05-distraction-detector.md`, sección "Actualización post-revisión final"):** se extrajo `dsd/sustained_timer.py` (helper puro compartido) y se agregó `gap_maximo_segundos: 1.0` a `config/somnolencia.yaml`/`ConfigSomnolencia`. `procesar_ear` ahora calcula `hubo_hueco` contra un nuevo campo `ultimo_procesado` en `EstadoSomnolencia` y lo pasa al helper. Nuevo test `test_microsueno_no_dispara_con_valor_inflado_tras_hueco_prolongado`; los tests de cooldown que usaban saltos de timestamp como atajo se reescribieron con muestreo continuo. 91/91 tests en verde tras el fix (incluye ambos sub-proyectos).
+
 ### Critical Files for Implementation
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/drowsiness_state.py
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/config.py
@@ -1305,3 +1311,4 @@ La revisión final de todo el branch (dispatchada con el modelo más capaz, cubr
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/face_mesh.py
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/main.py
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/db.py
+- /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/sustained_timer.py (nuevo, post-revision del sub-proyecto de distracción)

@@ -1242,6 +1242,22 @@ git commit -m "feat: integrar deteccion de distraccion (pose de cabeza + mirada)
 2. Los módulos impuros (Tasks 5-6) requieren verificación manual con cámara real y fotos ya enroladas, siguiendo el mismo patrón ya establecido para `face_mesh.py`/`main.py` en el sub-proyecto de somnolencia.
 3. Verificación final: correr `python -m dsd.main`, provocar un giro de cabeza y una desviación de mirada reales, y confirmar con `sqlite3 data/app.db` que ambos eventos quedaron persistidos correctamente en la tabla `events`.
 
+## Actualización post-revisión final: hueco de detección + mirada durante ojos cerrados
+
+La revisión final de todo el branch (7 commits de Tasks 1-6 + main.py) encontró 2 hallazgos Importantes:
+
+**1. Temporizadores congelados durante huecos de detección facial.** `cabeza_girada_inicio`/`mirada_desviada_inicio` (y también `cierre_inicio` de microsueño en `drowsiness_state.py`, ya en producción desde el sub-proyecto anterior) no verificaban cuánto tiempo pasó desde el último frame procesado. Si el rostro no se detecta durante un tramo largo (frames descartados por completo, según el Global Constraint de "sin rostro se descarta") y luego se retoma con la condición ya activa, el código asumía continuidad durante todo el hueco, disparando un evento inmediato con duración inflada — el mismo tipo de falso positivo que `perclos_cobertura_minima` ya resuelve para la ventana deslizante, pero en el temporizador de sostenimiento.
+
+**Fix:** se extrajo `dsd/sustained_timer.py` (módulo puro nuevo, con tests propios) implementando el patrón "duración continua + cooldown" de forma reutilizable, con un parámetro `hubo_hueco` explícito. Se agregó `gap_maximo_segundos: 1.0` a ambas configs (`somnolencia.yaml`, `distraccion.yaml`), documentado como salvaguarda de ingeniería. `drowsiness_state.py` (microsueño) y `distraction_state.py` (cabeza y mirada) ahora calculan `hubo_hueco` comparando el timestamp actual contra un nuevo campo `ultimo_procesado` en su estado, y lo pasan al helper compartido.
+
+**Restricción de diseño encontrada durante la corrección:** varios tests existentes (`test_microsueno_no_re_dispara_dentro_del_cooldown`, `test_distraccion_cabeza_no_re_dispara_dentro_del_cooldown`, etc.) usaban saltos grandes de timestamp (p.ej. `0.0 → 20.0 → 31.5`) como atajo para simular "cerrado/girado de forma continua" sin llamar a la función en cada instante intermedio. Con el nuevo guard, esos saltos se interpretan (correctamente) como huecos reales, rompiendo la premisa de esos tests. Se reescribieron con muestreo continuo (`while` + paso de 0.5s, bajo `gap_maximo_segundos`), preservando la intención original de cada test. El test combinado `test_microsueno_y_perclos_pueden_dispararse_en_el_mismo_llamado` no podía reconstruirse con muestreo continuo porque microsueño (fases en 2, 32, 62...) y PERCLOS (fases en 60, 90...) tienen periodos de 30s pero fases distintas y nunca coinciden solos bajo cierre continuo — se resolvió construyendo el estado previo directamente (en vez de hacerlo evolucionar con llamadas), lo cual es válido porque `EstadoSomnolencia` es un dataclass público sin invariantes ocultos.
+
+**2. Señal de mirada evaluada con los ojos cerrados.** Durante un microsueño sostenido, los landmarks de iris no son confiables (el párpado cubre el globo ocular), y el ratio de mirada podía dispararse fuera de rango sobre datos basura, generando un `distraccion_mirada` espurio que en realidad era un microsueño.
+
+**Fix:** `procesar_pose_y_mirada` (Task 4) gana un parámetro `ojos_abiertos: bool` que gatea la señal de mirada (`mirada_desviada = ojos_abiertos and (...)`). `dsd/main.py` (Task 6) calcula `ojos_abiertos = ear_promedio >= config_somnolencia.ear_umbral` (reutilizando el EAR ya calculado para somnolencia, sin trabajo adicional) y lo pasa al llamar a `procesar_pose_y_mirada`.
+
+**Verificación:** 91/91 tests pasando (18 nuevos: 10 de `sustained_timer.py`, 1 de hueco en somnolencia, 2 de hueco + gating en distracción, más los tests reescritos), sin regresión en ningún test preexistente de los 3 sub-proyectos. `python3 -c "import dsd.main"` confirma que la integración sigue siendo válida.
+
 ### Critical Files for Implementation
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/head_pose.py
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/gaze_metrics.py
@@ -1250,3 +1266,5 @@ git commit -m "feat: integrar deteccion de distraccion (pose de cabeza + mirada)
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/distraction_state.py
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/face_mesh.py
 - /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/main.py
+- /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/sustained_timer.py (nuevo, post-revision)
+- /Users/cursor/Dev/eosorio/dteccion_somnolencia_distraccion/dsd/drowsiness_state.py (modificado, post-revision)
