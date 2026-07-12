@@ -55,6 +55,7 @@ class ResultadoLandmarks:
     iris_izquierdo: Tuple[float, float]
     matriz_rotacion: List[List[float]]
     puntos_boca: List[Tuple[float, float]]
+    puntos_todos: List[Tuple[float, float]]
 
 
 def detectar_landmarks(frame) -> Optional[ResultadoLandmarks]:
@@ -80,6 +81,7 @@ def detectar_landmarks(frame) -> Optional[ResultadoLandmarks]:
     iris_derecho = punto(INDICE_IRIS_DERECHO)
     iris_izquierdo = punto(INDICE_IRIS_IZQUIERDO)
     puntos_boca = [punto(i) for i in INDICES_BOCA]
+    puntos_todos = [punto(i) for i in range(len(landmarks))]
 
     matriz_4x4 = resultado.facial_transformation_matrixes[0]
     matriz_rotacion = [[float(matriz_4x4[i][j]) for j in range(3)] for i in range(3)]
@@ -91,4 +93,5 @@ def detectar_landmarks(frame) -> Optional[ResultadoLandmarks]:
         iris_izquierdo=iris_izquierdo,
         matriz_rotacion=matriz_rotacion,
         puntos_boca=puntos_boca,
+        puntos_todos=puntos_todos,
     )
