@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 
 import cv2
 
-from dsd.config import cargar_config, cargar_config_distraccion
+from dsd.config import cargar_config, cargar_config_celular, cargar_config_distraccion
 from dsd.db import (
     abrir_sesion,
     cerrar_sesion,
@@ -21,6 +21,8 @@ from dsd.eye_metrics import calcular_ear
 from dsd.face_mesh import detectar_landmarks
 from dsd.gaze_metrics import calcular_gaze_ratio
 from dsd.mouth_metrics import calcular_mar
+from dsd.object_detection import detectar_objetos
+from dsd.phone_state import estado_inicial_celular, procesar_objetos
 from dsd.head_pose import calcular_yaw_pitch
 from dsd.recognition import reconocer_conductor
 from dsd.session_state import Estado, estado_inicial, procesar_deteccion
@@ -28,6 +30,7 @@ from dsd.session_state import Estado, estado_inicial, procesar_deteccion
 RUTA_DB = "data/app.db"
 RUTA_CONFIG_SOMNOLENCIA = "config/somnolencia.yaml"
 RUTA_CONFIG_DISTRACCION = "config/distraccion.yaml"
+RUTA_CONFIG_CELULAR = "config/celular.yaml"
 
 frame_actual = None
 resultado_cacheado: Optional[Tuple[str, float]] = None
@@ -53,6 +56,7 @@ def main(mostrar_malla: bool = False) -> None:
     conn = init_db(RUTA_DB)
     config_somnolencia = cargar_config(RUTA_CONFIG_SOMNOLENCIA)
     config_distraccion = cargar_config_distraccion(RUTA_CONFIG_DISTRACCION)
+    config_celular = cargar_config_celular(RUTA_CONFIG_CELULAR)
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("No se pudo abrir la camara.")
@@ -64,6 +68,7 @@ def main(mostrar_malla: bool = False) -> None:
     estado = estado_inicial()
     estado_somnolencia = estado_inicial_somnolencia()
     estado_distraccion = estado_inicial_distraccion()
+    estado_celular = estado_inicial_celular()
     session_id_activo = None
 
     try:
@@ -89,11 +94,12 @@ def main(mostrar_malla: bool = False) -> None:
                         session_id_activo = None
                     else:
                         session_id_activo = abrir_sesion(conn, driver_id, ahora_iso)
-                    # Reinicia el rastreo de somnolencia y distraccion: cada
-                    # sesion (mismo conductor u otro) empieza con los
-                    # temporizadores en blanco.
+                    # Reinicia el rastreo de somnolencia, distraccion y
+                    # celular: cada sesion (mismo conductor u otro) empieza
+                    # con los temporizadores en blanco.
                     estado_somnolencia = estado_inicial_somnolencia()
                     estado_distraccion = estado_inicial_distraccion()
+                    estado_celular = estado_inicial_celular()
                     print(f"Sesion iniciada: {evento.conductor}")
                 elif evento.tipo == "sesion_cerrada":
                     if session_id_activo is None:
@@ -175,6 +181,27 @@ def main(mostrar_malla: bool = False) -> None:
                             )
                         else:
                             print("Advertencia: evento de distraccion no persistido, no hay sesion activa en la base de datos.")
+
+                objetos = detectar_objetos(frame)
+                estado_celular, eventos_celular = procesar_objetos(
+                    estado_celular, objetos, timestamp, config_celular
+                )
+                for evento_celular in eventos_celular:
+                    ahora_iso = datetime.now(timezone.utc).isoformat()
+                    print(
+                        f"Evento de celular: {evento_celular.tipo} "
+                        f"(valor={evento_celular.valor:.3f})"
+                    )
+                    if session_id_activo is not None:
+                        registrar_evento(
+                            conn,
+                            session_id_activo,
+                            evento_celular.tipo,
+                            evento_celular.valor,
+                            ahora_iso,
+                        )
+                    else:
+                        print("Advertencia: evento de celular no persistido, no hay sesion activa en la base de datos.")
 
             if estado.estado == Estado.ACTIVA:
                 texto = f"Sesion activa: {estado.conductor_actual}"
