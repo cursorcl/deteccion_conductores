@@ -14,10 +14,11 @@ from dsd.db import (
     registrar_evento,
 )
 from dsd.distraction_state import estado_inicial_distraccion, procesar_pose_y_mirada
-from dsd.drowsiness_state import estado_inicial_somnolencia, procesar_ear
+from dsd.drowsiness_state import estado_inicial_somnolencia, procesar_somnolencia
 from dsd.eye_metrics import calcular_ear
 from dsd.face_mesh import detectar_landmarks
 from dsd.gaze_metrics import calcular_gaze_ratio
+from dsd.mouth_metrics import calcular_mar
 from dsd.head_pose import calcular_yaw_pitch
 from dsd.recognition import reconocer_conductor
 from dsd.session_state import Estado, estado_inicial, procesar_deteccion
@@ -109,8 +110,9 @@ def main() -> None:
                     ear_derecho = calcular_ear(landmarks.puntos_ojo_derecho)
                     ear_izquierdo = calcular_ear(landmarks.puntos_ojo_izquierdo)
                     ear_promedio = (ear_derecho + ear_izquierdo) / 2
-                    estado_somnolencia, eventos_somnolencia = procesar_ear(
-                        estado_somnolencia, ear_promedio, timestamp, config_somnolencia
+                    mar = calcular_mar(landmarks.puntos_boca)
+                    estado_somnolencia, eventos_somnolencia = procesar_somnolencia(
+                        estado_somnolencia, ear_promedio, mar, timestamp, config_somnolencia
                     )
                     for evento_somnolencia in eventos_somnolencia:
                         ahora_iso = datetime.now(timezone.utc).isoformat()
