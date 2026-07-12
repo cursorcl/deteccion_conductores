@@ -1,3 +1,4 @@
+import argparse
 import threading
 import time
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ from dsd.db import (
     obtener_conductor_por_nombre,
     registrar_evento,
 )
+from dsd.debug_draw import dibujar_malla_debug
 from dsd.distraction_state import estado_inicial_distraccion, procesar_pose_y_mirada
 from dsd.drowsiness_state import estado_inicial_somnolencia, procesar_somnolencia
 from dsd.eye_metrics import calcular_ear
@@ -45,7 +47,7 @@ def hilo_reconocimiento() -> None:
             resultado_cacheado = resultado
 
 
-def main() -> None:
+def main(mostrar_malla: bool = False) -> None:
     global frame_actual
 
     conn = init_db(RUTA_DB)
@@ -104,8 +106,11 @@ def main() -> None:
             if estado.estado == Estado.ACTIVA:
                 landmarks = detectar_landmarks(frame)
                 if landmarks is not None:
-                    for x, y in landmarks.puntos_ojo_derecho + landmarks.puntos_ojo_izquierdo:
-                        cv2.circle(frame, (int(x), int(y)), 2, (0, 255, 255), -1)
+                    if mostrar_malla:
+                        dibujar_malla_debug(frame, landmarks)
+                    else:
+                        for x, y in landmarks.puntos_ojo_derecho + landmarks.puntos_ojo_izquierdo:
+                            cv2.circle(frame, (int(x), int(y)), 2, (0, 255, 255), -1)
 
                     ear_derecho = calcular_ear(landmarks.puntos_ojo_derecho)
                     ear_izquierdo = calcular_ear(landmarks.puntos_ojo_izquierdo)
@@ -193,4 +198,17 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Deteccion de somnolencia y distraccion del conductor."
+    )
+    parser.add_argument(
+        "--malla",
+        action="store_true",
+        help=(
+            "Dibuja la malla facial completa (478 puntos + lineas de "
+            "teselacion) y resalta los puntos de control de deteccion "
+            "(ojos, iris, boca), en vez de la superposicion normal."
+        ),
+    )
+    args = parser.parse_args()
+    main(mostrar_malla=args.malla)
