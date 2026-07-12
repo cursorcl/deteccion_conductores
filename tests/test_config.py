@@ -171,7 +171,7 @@ def test_cargar_config_celular_clave_faltante_lanza_keyerror(tmp_path):
 
 def test_cargar_config_celular_archivo_real_del_proyecto():
     config = cargar_config_celular("config/celular.yaml")
-    assert config.confianza_umbral == 0.5
+    assert config.confianza_umbral == 0.2
     assert config.celular_segundos == 2.0
     assert config.cooldown_segundos == 30.0
     assert config.gap_maximo_segundos == 1.0
