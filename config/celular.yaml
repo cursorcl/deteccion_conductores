@@ -1,0 +1,28 @@
+# Configuracion de deteccion de uso de celular.
+# La etiqueta detectada ("cell phone") viene del modelo pre-entrenado sobre
+# COCO (efficientdet_lite0); ver dsd/object_detection.py y dsd/phone_state.py.
+
+# Confianza minima (0.0-1.0) de la deteccion de "cell phone" del modelo de
+# objetos para considerarla real y no ruido. Decision de ingenieria --
+# se calibrara con verificacion manual real, igual que mar_umbral y
+# gaze_ratio_umbral en los detectores de somnolencia/distraccion.
+confianza_umbral: 0.5
+
+# Duracion minima continua (segundos) con un celular detectado en el frame
+# para considerar "uso de celular". Decision de ingenieria (analoga a
+# distraccion_segundos: la literatura de distraccion al conducir asocia
+# el uso del celular con un vistazo sostenido fuera de la tarea de manejar,
+# no con una aparicion momentanea), sujeta a calibracion con pruebas reales.
+celular_segundos: 2.0
+
+# Tiempo minimo (segundos) entre dos disparos consecutivos del evento, para
+# no saturar el registro mientras la condicion persiste. Mismo valor y
+# misma justificacion que cooldown_segundos en los demas detectores, por
+# consistencia.
+cooldown_segundos: 30
+
+# Tiempo maximo (segundos) permitido entre dos frames procesados
+# consecutivamente antes de considerar que hubo un "hueco" de deteccion.
+# Mismo valor y misma justificacion que gap_maximo_segundos en los demas
+# detectores.
+gap_maximo_segundos: 1.0

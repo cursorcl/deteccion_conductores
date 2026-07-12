@@ -95,3 +95,37 @@ def cargar_config_distraccion(path: str) -> ConfigDistraccion:
         cooldown_segundos=float(datos["cooldown_segundos"]),
         gap_maximo_segundos=float(datos["gap_maximo_segundos"]),
     )
+
+
+CAMPOS_REQUERIDOS_CELULAR = (
+    "confianza_umbral",
+    "celular_segundos",
+    "cooldown_segundos",
+    "gap_maximo_segundos",
+)
+
+
+@dataclass
+class ConfigCelular:
+    confianza_umbral: float
+    celular_segundos: float
+    cooldown_segundos: float
+    gap_maximo_segundos: float
+
+
+def cargar_config_celular(path: str) -> ConfigCelular:
+    with open(path, "r", encoding="utf-8") as archivo:
+        datos = yaml.safe_load(archivo)
+
+    faltantes = [campo for campo in CAMPOS_REQUERIDOS_CELULAR if campo not in datos]
+    if faltantes:
+        raise KeyError(
+            f"Faltan claves requeridas en el archivo de configuracion '{path}': {faltantes}"
+        )
+
+    return ConfigCelular(
+        confianza_umbral=float(datos["confianza_umbral"]),
+        celular_segundos=float(datos["celular_segundos"]),
+        cooldown_segundos=float(datos["cooldown_segundos"]),
+        gap_maximo_segundos=float(datos["gap_maximo_segundos"]),
+    )

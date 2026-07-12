@@ -125,3 +125,53 @@ def test_cargar_config_distraccion_archivo_real_del_proyecto():
     assert config.gaze_ratio_umbral == 0.20
     assert config.cooldown_segundos == 30.0
     assert config.gap_maximo_segundos == 1.0
+
+
+from dsd.config import ConfigCelular, cargar_config_celular
+
+YAML_VALIDO_CELULAR = """
+confianza_umbral: 0.5
+celular_segundos: 2.0
+cooldown_segundos: 30
+gap_maximo_segundos: 1.0
+"""
+
+
+def test_cargar_config_celular_retorna_los_valores_correctos(tmp_path):
+    ruta = tmp_path / "celular.yaml"
+    ruta.write_text(YAML_VALIDO_CELULAR)
+
+    config = cargar_config_celular(str(ruta))
+
+    assert config == ConfigCelular(
+        confianza_umbral=0.5,
+        celular_segundos=2.0,
+        cooldown_segundos=30.0,
+        gap_maximo_segundos=1.0,
+    )
+
+
+def test_cargar_config_celular_convierte_valores_a_float(tmp_path):
+    ruta = tmp_path / "celular.yaml"
+    ruta.write_text(YAML_VALIDO_CELULAR)
+
+    config = cargar_config_celular(str(ruta))
+
+    assert isinstance(config.confianza_umbral, float)
+    assert isinstance(config.cooldown_segundos, float)
+
+
+def test_cargar_config_celular_clave_faltante_lanza_keyerror(tmp_path):
+    ruta = tmp_path / "celular.yaml"
+    ruta.write_text("confianza_umbral: 0.5\n")
+
+    with pytest.raises(KeyError):
+        cargar_config_celular(str(ruta))
+
+
+def test_cargar_config_celular_archivo_real_del_proyecto():
+    config = cargar_config_celular("config/celular.yaml")
+    assert config.confianza_umbral == 0.5
+    assert config.celular_segundos == 2.0
+    assert config.cooldown_segundos == 30.0
+    assert config.gap_maximo_segundos == 1.0
